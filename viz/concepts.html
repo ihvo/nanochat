@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>concepts · nanochat inference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/python.min.js"></script>
+<style>
+:root {
+  --bg: #0a0b10; --bg-2: #0f1117; --surface: #15171f; --surface-2: #1b1e28;
+  --border: #252836; --border-2: #303345;
+  --text: #e8e9f1; --muted: #8a8d9f; --dim: #5d6072;
+  --gold: #f0b840; --gold-soft: #c89234;
+  --q: #5aa9ff; --k: #5ed492; --v: #f06aa3;
+  --attn: #a855f7; --gate: #fb923c;
+  --ok: #4ade80; --warn: #facc15; --bad: #f87171;
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Inter", -apple-system, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--sans); background: var(--bg); color: var(--text);
+  line-height: 1.65; font-size: 16.5px;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+::selection { background: var(--gold); color: #000; }
+a { color: var(--gold); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Layout: two-column with left rail */
+.shell { display: grid; grid-template-columns: 220px 1fr; max-width: 1200px; margin: 0 auto; gap: 56px; padding: 32px; }
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; gap: 0; padding: 16px; } .rail { display: none; } }
+.rail { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; padding-right: 8px; }
+.rail::-webkit-scrollbar { width: 4px; }
+.rail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.rail-back { font-family: var(--mono); font-size: 12px; color: var(--muted); display: inline-block; margin-bottom: 24px; }
+.rail-back:hover { color: var(--gold); }
+.rail-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--dim); margin-bottom: 10px; }
+.rail ol { list-style: none; padding: 0; margin: 0; counter-reset: chapter; }
+.rail li { counter-increment: chapter; }
+.rail a.chap { display: block; padding: 8px 0 8px 32px; font-size: 13px; color: var(--muted); border-left: 1px solid var(--border); position: relative; transition: all 0.12s; }
+.rail a.chap::before { content: counter(chapter, decimal-leading-zero); position: absolute; left: 10px; top: 8px; font-size: 10px; color: var(--dim); font-family: var(--mono); }
+.rail a.chap:hover { color: var(--text); text-decoration: none; }
+.rail a.chap.active { color: var(--gold); border-left-color: var(--gold); }
+.rail a.chap.active::before { color: var(--gold); }
+
+/* Main column */
+main { min-width: 0; }
+
+/* Article header */
+.art-head { padding: 24px 0 48px; }
+.art-eyebrow { display: inline-flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--gold); margin-bottom: 24px; }
+.art-eyebrow .num { padding: 3px 10px; border: 1px solid var(--gold); border-radius: 100px; }
+.art-eyebrow .tag { color: var(--muted); border: none; padding: 0; }
+.art-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(36px, 5vw, 56px); line-height: 1.08; margin: 0 0 18px; letter-spacing: -0.018em; }
+.art-head h1 em { font-style: italic; color: var(--gold); }
+.art-head .deck { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0; line-height: 1.55; }
+
+/* Section blocks */
+section.block { padding: 36px 0; border-top: 1px solid var(--border); }
+section.block:first-of-type { border-top: 1px solid var(--gold); border-top-width: 2px; }
+.block-eyebrow { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--gold); margin: 0 0 10px; font-weight: 600; }
+.block h2 { font-family: var(--serif); font-weight: 500; font-size: 32px; line-height: 1.15; margin: 0 0 24px; letter-spacing: -0.012em; }
+.block h3 { font-family: var(--serif); font-weight: 500; font-size: 20px; margin: 28px 0 12px; color: var(--text); }
+.block p { margin: 0 0 16px; }
+.block p strong { color: var(--text); font-weight: 600; }
+.block ul, .block ol { padding-left: 22px; margin: 0 0 16px; }
+.block li { margin-bottom: 8px; }
+
+/* Analogy callout */
+.analogy { background: linear-gradient(180deg, rgba(94,212,146,0.06), rgba(94,212,146,0.02)); border: 1px solid rgba(94,212,146,0.25); border-left: 3px solid var(--k); border-radius: 6px; padding: 18px 22px; margin: 20px 0; }
+.analogy .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--k); margin-bottom: 6px; font-weight: 600; }
+.analogy p:last-child { margin-bottom: 0; }
+
+/* What-if (counterfactual) callout */
+.whatif { background: linear-gradient(180deg, rgba(248,113,113,0.05), rgba(248,113,113,0.015)); border: 1px solid rgba(248,113,113,0.22); border-left: 3px solid var(--bad); border-radius: 6px; padding: 18px 22px; margin: 20px 0; }
+.whatif .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--bad); margin-bottom: 6px; font-weight: 600; }
+.whatif p:last-child { margin-bottom: 0; }
+
+/* Math */
+.math-block { padding: 14px 18px; background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 18px 0; overflow-x: auto; }
+.katex { font-size: 1.05em !important; }
+
+/* Code */
+pre.code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; overflow-x: auto; margin: 16px 0; font-size: 13.5px; line-height: 1.6; }
+pre.code code { font-family: var(--mono); }
+.code-cap { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: -6px; margin-bottom: 18px; padding-left: 4px; }
+
+/* Alternatives table */
+.alts { display: grid; gap: 12px; margin: 16px 0 24px; }
+.alt { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: baseline; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+@media (max-width: 600px) { .alt { grid-template-columns: 1fr; gap: 4px; } }
+.alt-name { font-family: var(--mono); font-size: 13.5px; color: var(--gold); font-weight: 500; }
+.alt-name .verdict { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); margin-top: 4px; font-weight: 400; }
+.alt-name .verdict.win { color: var(--ok); }
+.alt-name .verdict.meh { color: var(--warn); }
+.alt-name .verdict.lose { color: var(--bad); }
+.alt-name .verdict.used { color: var(--gold); }
+.alt-desc { color: var(--muted); font-size: 14px; line-height: 1.55; }
+.alt-desc strong { color: var(--text); }
+
+/* Stage navigator (prev/next) */
+.pn { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 56px 0 40px; padding-top: 32px; border-top: 1px solid var(--border); }
+.pn a { display: block; padding: 18px 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); transition: all 0.12s; text-decoration: none; }
+.pn a:hover { border-color: var(--gold); background: var(--surface-2); transform: translateY(-1px); text-decoration: none; }
+.pn a.disabled { opacity: 0.3; pointer-events: none; }
+.pn .dir { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 4px; }
+.pn .nxt-title { font-family: var(--serif); font-size: 17px; color: var(--text); }
+.pn a.next { text-align: right; }
+
+/* Tag pills */
+.tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-right: 6px; }
+.tag-q { background: rgba(90,169,255,0.15); color: var(--q); border: 1px solid rgba(90,169,255,0.3); }
+.tag-k { background: rgba(94,212,146,0.15); color: var(--k); border: 1px solid rgba(94,212,146,0.3); }
+.tag-v { background: rgba(240,106,163,0.15); color: var(--v); border: 1px solid rgba(240,106,163,0.3); }
+
+/* Inline code */
+code.inl { font-family: var(--mono); font-size: 0.92em; color: var(--gold); background: rgba(240,184,64,0.08); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(240,184,64,0.15); }
+
+article { display: none; }
+article.active { display: block; animation: fadeIn 0.25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+footer.foot { color: var(--muted); font-size: 12px; text-align: center; padding: 40px 0; border-top: 1px solid var(--border); margin-top: 60px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="rail">
+  <a class="rail-back" href="inference_visualization.html">← back to overview</a>
+  <div class="rail-title">Concepts</div>
+  <ol id="railList"></ol>
+</aside>
+
+<main id="content"></main>
+
+</div>
+
+<script>
+const CONCEPTS = [];
+
+// =============================================================================
+// 01 — Tokenize
+// =============================================================================
+CONCEPTS.push({
+  id: 'tokenize', num: '01', tag: 'tokenizer.py · BPE',
+  title: 'Tokenization',
+  deck: 'Computers can only multiply numbers. Tokenization is the bridge from text to integers — and the choice of bridge shapes everything downstream.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>A transformer is, at its heart, a giant pile of matrix multiplications. It cannot read the letter <code class="inl">a</code>. It cannot read the word <em>"the"</em>. It can only multiply numbers. So before any model work begins, we need a deterministic, reversible function that turns a string of characters into a sequence of integers and back again. That function is the <strong>tokenizer</strong>.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Think of a tokenizer like a barcode scanner at a grocery store. The store doesn't reason about "apples" — it reasons about SKU <code class="inl">4131</code>. Tokenization assigns a SKU to every piece of text the model has ever seen, so the rest of the system can deal in pure numbers.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>You'd be stuck with one of two ugly extremes. <strong>Character-level</strong>: feed in raw bytes, one per step. Every sentence becomes hundreds of tokens; the model wastes most of its capacity learning that <code class="inl">"t"</code>+<code class="inl">"h"</code>+<code class="inl">"e"</code> often appear together. <strong>Word-level</strong>: one number per word. But what about <em>"unfriendliness"</em>, or typos, or Japanese? You'd need a vocabulary of millions and still fail on anything novel. Tokenization finds a middle ground: subwords frequent enough to be efficient, fine enough to handle any string.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The big picture</h3>
+  <p>nanochat uses <strong>Byte-Pair Encoding</strong> (BPE), the same family used by GPT-2, GPT-3, and most modern LMs. BPE has two phases: <em>training</em> (done once, on a big text corpus) and <em>encoding</em> (done at inference, per input string).</p>
+
+  <h3>Training the vocabulary</h3>
+  <ol>
+    <li>Start with the alphabet of all individual bytes (256 entries — a guaranteed "always works" base case).</li>
+    <li>Scan a huge corpus and count every adjacent pair of tokens: <code class="inl">("t", "h")</code>, <code class="inl">("h", "e")</code>, …</li>
+    <li>Find the most common pair. Merge it into a new single token: <code class="inl">"th"</code>. Add it to the vocab.</li>
+    <li>Re-tokenize the corpus with the new merge in place. Re-count pairs. Repeat.</li>
+    <li>Stop when the vocab hits a target size (nanochat: <strong>32,768</strong>, padded to a multiple of 64 for GPU friendliness).</li>
+  </ol>
+  <p>The output is two artifacts: the <strong>vocab</strong> (id → byte string) and the <strong>merge table</strong> (ordered list of pair-merges learned along the way).</p>
+
+  <h3>Encoding a new string</h3>
+  <p>At inference, we apply the same merges in the same order. The text <em>"unfriendliness"</em> might split as <code class="inl">"un" + "friend" + "li" + "ness"</code> if those were learned as common chunks. Rare or made-up words decompose into smaller pieces — in the worst case, all the way down to individual bytes.</p>
+
+  <div class="math-block" data-tex="\\text{encode}: \\text{string} \\to \\mathbb{Z}^{T}, \\quad \\text{decode}: \\mathbb{Z}^{T} \\to \\text{string}"></div>
+  <p>The contract: encode then decode gets back exactly your input string. Always. No information loss, no Unicode surprises, no edge cases. (This is why byte-level BPE is preferred over character-level.)</p>
+
+  <h3>A few extras nanochat ships</h3>
+  <ul>
+    <li><strong>Special tokens</strong> like <code class="inl">&lt;|endoftext|&gt;</code> and chat-format markers (<code class="inl">&lt;|user|&gt;</code>, <code class="inl">&lt;|assistant|&gt;</code>) get reserved ids and are inserted by formatting code, not learned.</li>
+    <li><strong>Pre-tokenization</strong>: text is first split by a regex (whitespace, digits, punctuation) so merges never cross those boundaries. Keeps the vocab cleaner.</li>
+    <li>The tokenizer is written in Rust and called from Python via PyO3 — encoding is fast enough to never be the bottleneck.</li>
+  </ul>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Character / byte-level<span class="verdict lose">slow</span></div><div class="alt-desc">One token per byte. <strong>Pro:</strong> tiny, fixed vocab; no OOV. <strong>Con:</strong> sequences are 4-6× longer, attention cost is O(T²), so you pay 16-36× more compute for the same text.</div></div>
+    <div class="alt"><div class="alt-name">Word-level<span class="verdict lose">brittle</span></div><div class="alt-desc">One token per whitespace-split word. <strong>Pro:</strong> short sequences. <strong>Con:</strong> vocab explodes (millions of words), zero coverage of typos / new words / morphology / non-English.</div></div>
+    <div class="alt"><div class="alt-name">SentencePiece (Unigram)<span class="verdict win">competitive</span></div><div class="alt-desc">Used by Llama, T5. Trains a probabilistic model over subwords and prunes low-probability ones. Often slightly higher-quality compression than BPE; behavior under encoding is similar.</div></div>
+    <div class="alt"><div class="alt-name">tiktoken / cl100k BPE<span class="verdict win">competitive</span></div><div class="alt-desc">OpenAI's BPE flavor. Same family as nanochat's, different regex pre-split and merge corpus. Roughly equivalent in practice.</div></div>
+    <div class="alt"><div class="alt-name">Byte-level BPE (nanochat)<span class="verdict used">used</span></div><div class="alt-desc">Same as standard BPE but the base alphabet is all 256 bytes — so any UTF-8 string round-trips perfectly with no special cases. The right default in 2025.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 02 — Embed
+// =============================================================================
+CONCEPTS.push({
+  id: 'embed', num: '02', tag: 'wte · gpt.py:425',
+  title: 'Token embedding',
+  deck: 'Integers carry no meaning by themselves. The embedding table turns each token id into a learnable vector — the model\'s first opportunity to inject semantics.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>After tokenization, the word <em>"cat"</em> might be id <code class="inl">42</code> and <em>"dog"</em> might be id <code class="inl">17</code>. Those numbers are <strong>arbitrary</strong> — they came from the order tokens happened to land in the vocab during BPE training. The model cannot do anything useful with them as-is; <code class="inl">42</code> isn't 2.47× more <em>"catty"</em> than <code class="inl">17</code>.</p>
+  <p>The embedding layer fixes this. It replaces each integer id with a learnable vector of size <strong>d_model</strong> (1280 in nanochat-d20). After training, semantically related tokens end up near each other in this 1280-dimensional space — <em>cat</em>, <em>dog</em>, <em>kitten</em>, <em>puppy</em> form a tight cluster; <em>refrigerator</em> sits far away.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>The token id is the library call number; the embedding is the contents of the book on that shelf. The call number alone tells you nothing about whether two books are related; reading both tells you they're both about cats.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>You could feed the token id directly into the first attention layer as a 1-D scalar. The model would have to learn that <em>"every time you see input 42, here's the rich behavior to perform"</em>, with no shared structure between similar tokens. Worse, scalar inputs can't carry the dozens of independent attributes a token actually has (part-of-speech, sentiment, formality, topic, …). The embedding gives 1280 separate channels, learned jointly with everything else.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+  <h3>The big picture</h3>
+  <p>It's a lookup table. A 2D matrix <strong>wte</strong> of shape <code class="inl">(vocab_size, d_model)</code>. To embed token id <em>k</em>, you read row <em>k</em>. That's it. There is no multiplication, no nonlinearity, no normalization at this stage — just a memory load.</p>
+
+  <div class="math-block" data-tex="\\text{wte} \\in \\mathbb{R}^{V \\times d}, \\quad X = \\text{wte}[\\text{ids}] \\in \\mathbb{R}^{B \\times T \\times d}"></div>
+
+  <h3>Where the learning happens</h3>
+  <p>Every entry in <strong>wte</strong> is a learnable parameter. During training, gradients flow back to the rows of <strong>wte</strong> that correspond to the tokens in the current batch — the model nudges those rows in the direction that reduces the loss. Over millions of steps, rows for similar-meaning tokens drift together because they get nudged in similar directions on similar examples.</p>
+  <p>For nanochat-d20 the table has <strong>32,768 × 1280 ≈ 42M</strong> parameters — a significant slice of total params. That's the cost of giving every token its own learnable identity.</p>
+
+  <h3>One subtlety: tied weights</h3>
+  <p>The final layer of the model — the <code class="inl">lm_head</code> that produces logits — needs to project <em>back</em> from a d_model vector to a probability over vocab. Its weight matrix has the same shape as <strong>wte</strong>: <code class="inl">(V, d)</code>. Many models <em>tie</em> these two matrices so they share storage and gradient. nanochat keeps them separate (untied), which costs more params but trains slightly better in practice.</p>
+
+  <h3>What about position?</h3>
+  <p>Notice the embedding only depends on the token id, not its position in the sequence. The word <em>"cat"</em> gets the same vector at position 0 and at position 500. Position information is added later, by <strong>rotary embeddings</strong> (stage 08), which rotate Q and K inside attention rather than perturbing the embedding itself.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">One-hot encoding<span class="verdict lose">no semantics</span></div><div class="alt-desc">Represent token <em>k</em> as a vector of zeros with a single 1 at position <em>k</em>. Mathematically equivalent to a lookup, but doesn't share structure between tokens at all — and requires a 32,768-wide first layer, which is wasteful.</div></div>
+    <div class="alt"><div class="alt-name">Hash embeddings<span class="verdict meh">no learning</span></div><div class="alt-desc">Hash the token id into a fixed pseudo-random vector. <strong>Pro:</strong> zero parameters, infinite vocab. <strong>Con:</strong> no semantic learning. Used in some retrieval/recommender settings, not in modern LMs.</div></div>
+    <div class="alt"><div class="alt-name">Pretrained word2vec / GloVe<span class="verdict meh">obsolete</span></div><div class="alt-desc">Train embeddings on a side task (predict context words), then load and freeze them. <strong>Pro:</strong> good starting point for small models. <strong>Con:</strong> modern LMs train embeddings end-to-end with the rest of the model; jointly-trained embeddings always beat pretrained-and-frozen ones at scale.</div></div>
+    <div class="alt"><div class="alt-name">Factorized embeddings<span class="verdict meh">memory tradeoff</span></div><div class="alt-desc">Used in ALBERT: store <code class="inl">(V, e)</code> and <code class="inl">(e, d)</code> with e ≪ d, then multiply. Saves params at small quality cost. nanochat is small enough that it doesn't need this.</div></div>
+    <div class="alt"><div class="alt-name">Learnable lookup table<span class="verdict used">used</span></div><div class="alt-desc">Plain <code class="inl">nn.Embedding</code>. The standard since 2017. Simple, fast, jointly trained.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 03 — Post-embed RMSNorm
+// =============================================================================
+CONCEPTS.push({
+  id: 'postnorm', num: '03', tag: 'F.rms_norm · gpt.py:428',
+  title: 'RMSNorm',
+  deck: 'Before the first transformer block touches anything, every token vector gets rescaled to live on a unit sphere. Boring on the surface, foundational underneath.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>Neural networks are picky about the magnitude of their inputs. If a vector is too large, downstream multiplications saturate; gradients explode. If it's too small, signals fade away; gradients vanish. The job of normalization is to put every vector on roughly the same scale before the next operation.</p>
+  <p>RMSNorm rescales each token's hidden vector so its <strong>Root-Mean-Square</strong> magnitude is 1. The direction of the vector (which carries the meaning) is preserved; only the overall "loudness" is fixed.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine 20 musicians playing at wildly different volumes. The conductor (RMSNorm) doesn't change <em>what</em> they're playing — just turns everyone's amp to the same level so the mix is balanced. Now the next stage (attention, MLP) can listen to all of them on equal terms.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>Without any normalization, training is famously fragile. Activations in the middle of a deep stack can balloon by orders of magnitude from one layer to the next. The model would either fail to learn at all, or require painstaking learning-rate warmup, gradient clipping, and weight-initialization schemes to limp through. Norm layers buy you robust, almost set-it-and-forget-it training.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+  <h3>The big picture</h3>
+  <p>For each token vector <code class="inl">x</code> of size <em>d</em>, compute the root-mean-square of its entries and divide by it. That's all.</p>
+  <div class="math-block" data-tex="\\text{RMSNorm}(x) = \\frac{x}{\\sqrt{\\frac{1}{d}\\sum_{i=1}^{d} x_i^2 + \\epsilon}}"></div>
+  <p>The <code class="inl">ε</code> is a tiny constant (like 1e-5) added inside the square root to prevent division by zero when <code class="inl">x</code> is all zeros.</p>
+
+  <h3>"Why no mean subtraction?"</h3>
+  <p>The older <strong>LayerNorm</strong> first subtracts the mean of <code class="inl">x</code>, then divides by the standard deviation. RMSNorm skips the mean. Empirically this works just as well, and it's cheaper: one fewer pass over the vector, one fewer subtraction. RMSNorm is now the default for nearly all modern LMs (Llama, GPT-NeoX, Mistral, …).</p>
+
+  <h3>"Why no learnable scale?"</h3>
+  <p>Most norm layers in transformers have a learnable per-channel scale <code class="inl">γ</code> (and sometimes shift <code class="inl">β</code>) right after the divide. nanochat's <em>post-embedding</em> norm leaves both off — pure rescale, no params. The reasoning: the layers that follow have their own learnable matrices, so they can recover any scale they want. Why duplicate the work?</p>
+
+  <h3>One Python line</h3>
+  <pre class="code"><code class="language-python">x = F.rms_norm(x, (x.size(-1),))</code></pre>
+
+  <h3>Where else does RMSNorm appear?</h3>
+  <p>This same operation runs <strong>inside every transformer block</strong> too — once before the attention sublayer (on <code class="inl">x</code> going into Q/K/V), once before the MLP sublayer (a.k.a. <em>pre-norm</em> architecture). It also runs on Q and K separately (stage 09, <strong>QK-norm</strong>). RMSNorm is one of the most-called functions in the model.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">LayerNorm<span class="verdict meh">heavier</span></div><div class="alt-desc">Subtract the mean, then divide by std. <strong>Pro:</strong> centers each token at zero. <strong>Con:</strong> the centering rarely helps in transformers and costs one extra reduction. The OG (2016) but mostly replaced.</div></div>
+    <div class="alt"><div class="alt-name">BatchNorm<span class="verdict lose">wrong tool</span></div><div class="alt-desc">Normalize across the batch dimension. Standard for CNNs. <strong>Con:</strong> requires moving statistics, doesn't play well with variable-length sequences or autoregressive decoding (you'd be peeking at future batch members).</div></div>
+    <div class="alt"><div class="alt-name">No normalization<span class="verdict lose">unstable</span></div><div class="alt-desc">Just stack layers raw. Some experiments (ReZero, NFNets) make it work with careful init and scalar gating, but you give up the robustness that norm provides essentially for free.</div></div>
+    <div class="alt"><div class="alt-name">Post-LN vs Pre-LN<span class="verdict meh">placement</span></div><div class="alt-desc">Not a different norm, but a different <em>placement</em>. The original transformer put norm <em>after</em> the residual add (post-LN). Modern models put it <em>before</em> the sublayer (pre-LN). Pre-LN is much easier to train deep — nanochat uses it implicitly.</div></div>
+    <div class="alt"><div class="alt-name">RMSNorm (no params)<span class="verdict used">used</span></div><div class="alt-desc">Pure scale-only normalization. The 2025 default. Cheaper than LayerNorm, statistically equivalent in practice.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 04 — Smear
+// =============================================================================
+CONCEPTS.push({
+  id: 'smear', num: '04', tag: 'forward · gpt.py:430',
+  title: 'Smear',
+  deck: 'A small, almost-free trick: let every token directly mix in a fraction of the previous token\'s embedding, gated by a learned scalar.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>In a vanilla transformer, every position must look up its left neighbor through the attention mechanism — by emitting a query that matches the neighbor's key. That works, but it's an expensive way to do something very common. Looking at the immediately previous token is the <em>most useful</em> single piece of context (think bigram statistics, "the cat" vs "a cat"). Why pay full attention price for it on every layer?</p>
+  <p>Smear gives every position a cheap, direct, learned mix of the previous token's embedding — no attention required. A single linear + sigmoid gate decides how much to mix.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine a conversation where you have to relay every observation through a slow committee (attention). It works, but it's overkill for "what did the last person just say?" — that's something you can hear directly. Smear is the direct-hearing shortcut for the immediate past.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>The model would still work — vanilla transformers do this every day. But measurable capacity would be spent in early attention heads on a task that smear handles with a single linear and a sigmoid. Karpathy's hypothesis: peeling off this specific job frees attention heads for genuinely long-range mixing. Cheap inclusion, small consistent win.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The big picture</h3>
+  <p>Right after the post-embedding RMSNorm, every token vector <code class="inl">x</code> is replaced by a convex combination of itself and the previous token's vector <code class="inl">prev_x</code>:</p>
+  <div class="math-block" data-tex="x_t \\leftarrow (1 - g_t) \\cdot x_t + g_t \\cdot x_{t-1}, \\quad g_t = \\sigma(W_{\\text{smear}} \\cdot x_t[:24])"></div>
+  <p>The gate <code class="inl">g_t ∈ (0, 1)</code> is produced by a tiny linear that looks at only the first 24 channels of <code class="inl">x_t</code> (a compressed "what kind of token am I?" signal), passed through a sigmoid. <code class="inl">g_t = 0</code> means "keep me as I am"; <code class="inl">g_t = 1</code> means "I am the previous token".</p>
+
+  <h3>Why a 24-channel slice?</h3>
+  <p>Cheap. A full <code class="inl">(d=1280, 1)</code> linear would add ~1300 params per gate. A <code class="inl">(24, 1)</code> linear adds 24. Across 20 layers worth of mixing, the savings matter. The choice of <em>which</em> 24 channels is fixed (the first 24); the model learns during training to route gate-relevant information into them.</p>
+
+  <h3>Inference subtlety: the prev_embedding cache</h3>
+  <p>During <strong>training</strong>, "previous token" is trivially <code class="inl">x[:, :-1, :]</code> shifted right by one. During <strong>decoding</strong>, however, the model is processing one token at a time — the previous token's embedding lives in a previous step. nanochat solves this by storing the last normalized embedding on the KV cache:</p>
+  <pre class="code"><code class="language-python">if kv_cache is None:
+    prev_x = F.pad(x[:, :-1, :], (0, 0, 1, 0))   # train path
+else:
+    prev_x = kv_cache.prev_embedding.expand_as(x)  # decode path
+    kv_cache.prev_embedding = x[:, -1:, :].clone()</code></pre>
+
+  <h3>Note: only at the entrance</h3>
+  <p>Smear runs <em>once</em>, before the block loop — not inside every block. It's a property of the initial embedding stream, not an attention-replacement.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">No smear (vanilla)<span class="verdict meh">standard</span></div><div class="alt-desc">Just feed the embeddings straight into the first block. What every "textbook" transformer does. Works fine; smear is a small bonus on top.</div></div>
+    <div class="alt"><div class="alt-name">1D convolution on the embedding<span class="verdict meh">heavier</span></div><div class="alt-desc">A causal conv of width 2 or 3 mixes neighbors. <strong>Pro:</strong> more expressive than a single-scalar gate. <strong>Con:</strong> adds parameters per channel and per kernel width; smear gets most of the benefit for ~1000× fewer params.</div></div>
+    <div class="alt"><div class="alt-name">Fixed-ε mixing<span class="verdict meh">no learning</span></div><div class="alt-desc">Hardcode <code class="inl">g = 0.1</code> for everyone. <strong>Pro:</strong> zero parameters. <strong>Con:</strong> the model can't adapt the mix per token; common tokens (<em>"the"</em>) probably want different g than rare ones.</div></div>
+    <div class="alt"><div class="alt-name">Recurrent prelude (RNN cell)<span class="verdict lose">slow</span></div><div class="alt-desc">Run a small RNN or SSM (Mamba-style) over the embeddings before attention. <strong>Pro:</strong> mixes much more than one step back. <strong>Con:</strong> sequential, breaks GPU parallelism; large engineering and inference cost.</div></div>
+    <div class="alt"><div class="alt-name">Gated 1-step smear<span class="verdict used">used</span></div><div class="alt-desc">A single learned sigmoid scalar per token, mixing in exactly the one previous embedding. Tiny param count, fully parallel during training, easy inference path via prev_embedding cache. nanochat's choice.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 05 — Block loop (x0 + residual lambdas)
+// =============================================================================
+CONCEPTS.push({
+  id: 'block', num: '05', tag: 'forward · gpt.py:455',
+  title: 'The block, looped',
+  deck: 'One transformer block does a modest amount of work; stacking 20 of them is what gives the model depth. nanochat also blends in the original embedding at every layer.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>A single transformer block applies one round of "look around, then transform". That's not enough for non-trivial reasoning — translating a sentence, answering a multi-step question, writing code. Stacking many blocks gives the model <strong>depth</strong>: each layer can build on the representations of the layer below, the way a sentence parser might first identify words, then phrases, then clauses, then meaning.</p>
+  <p>nanochat-d20 stacks 20 such blocks. Two additional ideas wrap the basic stack:</p>
+  <ul>
+    <li><strong>Residual stream.</strong> Each block adds its output to its input, never replaces it. This lets gradients flow cleanly through dozens of layers.</li>
+    <li><strong>x0 blending.</strong> Every block also blends in a tiny fraction of the original normalized embedding (x0). This gives later layers continued access to the raw input, not just the transformed version several layers down.</li>
+  </ul>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>The residual stream is a whiteboard. Each block reads what's on it, scribbles its contribution, and passes the board along — it never erases anything. x0 blending is like keeping a faded photocopy of the original question taped to the corner of the board: even deep into the discussion, you can glance back at what was first asked.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>Without residual connections, deep transformers don't train — gradient signal vanishes through the stack. Without x0 blending, the model still works (most transformers do without it), but loses a small, free quality boost: by layer 15 the residual stream has been re-written so many times that the original token identity is muddled. x0 keeps it accessible.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>One block</h3>
+  <p>The body of a single block is the classic pre-norm transformer recipe:</p>
+  <div class="math-block" data-tex="x \\leftarrow x + \\text{Attention}(\\text{Norm}(x)); \\quad x \\leftarrow x + \\text{MLP}(\\text{Norm}(x))"></div>
+  <p>Two sublayers, two residual adds. Inside attention and MLP are stages 06–11. The "Norm" here is RMSNorm without learnable scale, applied per-token along the d_model axis.</p>
+
+  <h3>The loop wrapper</h3>
+  <p>Before each block fires, nanochat does the x0 blend:</p>
+  <pre class="code"><code class="language-python">x0 = x  # save the post-smear normalized embedding once
+
+for layer_idx in range(self.config.n_layer):
+    x = self.resid_lambdas[layer_idx] * x + self.x0_lambdas[layer_idx] * x0
+    x = self.transformer.h[layer_idx](x, ...)
+    if layer_idx == self.backout_layer:
+        x_backout = x</code></pre>
+  <p>Two learnable per-layer scalars (<code class="inl">resid_λ</code>, <code class="inl">x0_λ</code>) control the blend. Their initial values are a linear decay:</p>
+  <div class="math-block" data-tex="\\text{resid}\\_\\lambda_\\ell : 1.15 \\to 1.05, \\quad \\text{x0}\\_\\lambda_\\ell : 0.20 \\to 0.05"></div>
+  <p>So early layers lean a bit more on x0 (20%), late layers barely use it (5%). The lambdas are trained, so the model can reshape this schedule as it learns.</p>
+
+  <h3>Why init resid_λ > 1?</h3>
+  <p>The standard residual update is <code class="inl">x + f(x)</code> — a hidden multiplier of exactly 1. nanochat's parameterization allows it to be anything. Initializing slightly above 1 mildly amplifies the residual stream early in training, which empirically speeds up convergence. The model is free to scale it down later.</p>
+
+  <h3>The backout checkpoint</h3>
+  <p>At the midpoint (layer 10 of 20), the residual stream is saved into <code class="inl">x_backout</code>. After the final block, a learnable multiple of this snapshot is <em>subtracted</em> from the final state. We cover this in detail in <a href="#backout">stage 12 (Backout)</a>.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Plain residual (no x0 blend)<span class="verdict meh">standard</span></div><div class="alt-desc">Just <code class="inl">x = x + block(norm(x))</code>. What GPT-2, GPT-3, Llama do. Works great; x0 blending is a small additional knob nanochat adds.</div></div>
+    <div class="alt"><div class="alt-name">Highway networks<span class="verdict meh">older idea</span></div><div class="alt-desc">A gated residual: <code class="inl">x = T·block(x) + (1-T)·x</code>, with T learned per-token. Pre-dates the transformer residual. More expressive but adds params and was found unnecessary in practice.</div></div>
+    <div class="alt"><div class="alt-name">DenseNet-style<span class="verdict lose">memory hog</span></div><div class="alt-desc">Concatenate every layer's output into the residual stream, growing it over depth. <strong>Pro:</strong> very rich connectivity. <strong>Con:</strong> memory and parameter cost explodes with depth. Inappropriate for LM-scale transformers.</div></div>
+    <div class="alt"><div class="alt-name">Post-LN ordering<span class="verdict lose">unstable deep</span></div><div class="alt-desc">Norm comes <em>after</em> the residual add: <code class="inl">x = norm(x + block(x))</code>. The original 2017 transformer. Harder to train at depth; pre-LN is now standard.</div></div>
+    <div class="alt"><div class="alt-name">Pre-LN with x0 lambdas<span class="verdict used">used</span></div><div class="alt-desc">Standard pre-LN residual <em>plus</em> per-layer learned blend with the original embedding. Cheap extra knob; small consistent quality win.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 06 — QKV + GQA
+// =============================================================================
+CONCEPTS.push({
+  id: 'qkv', num: '06', tag: 'CausalSelfAttention · gpt.py:77',
+  title: 'Q, K, V — and GQA',
+  deck: 'Attention needs three roles per token: query, key, value. nanochat uses Grouped-Query Attention to share K and V across multiple Q heads.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>The whole point of attention (next stages) is: <em>for each token, look at all previous tokens and decide which ones to listen to, and what to take from them</em>. To do that, each token plays three roles simultaneously, all derived from its own hidden vector:</p>
+  <ul>
+    <li><strong>Query (Q)</strong> — "Here's what I'm trying to find."</li>
+    <li><strong>Key (K)</strong> — "Here's what I am, if anyone is looking for me."</li>
+    <li><strong>Value (V)</strong> — "If you decide to listen to me, here's the actual content I'll send you."</li>
+  </ul>
+  <p>The QKV projections are three independent linear transformations that produce Q, K, V from the same input <code class="inl">x</code>. They're how the model gets to specialize: the Q matrix learns "what does a query look like", the K matrix learns "what does a key look like".</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine a job board. <strong>Query</strong> = the role description you're hiring for. <strong>Key</strong> = the headline on each candidate's resume. <strong>Value</strong> = the full resume + portfolio + references that you'd actually <em>read</em> if the keys matched. You need all three; they're related but serve different functions.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we collapsed Q, K, V into one?</div>
+    <p>You'd lose expressiveness fast. With Q = K, attention is symmetric ("I look at people who look like me"), which can't model directional relationships like <em>"the verb attends to its subject"</em>. With K = V, the model can't separate "what makes me findable" from "what I'll actually contribute" — useful for, say, attending to a function name (key = name) and getting back its body (value = body). The three-way split costs ~3× the projection params and is universally worth it.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>Multi-Head Attention basics (MHA)</h3>
+  <p>Rather than one giant attention computation over a 1280-dim vector, the head dimension is split into <strong>H heads</strong> of size <em>D = d_model / H</em>. Each head runs its own independent attention, then results are concatenated and projected. This lets different heads specialize: one might track syntactic dependencies, another co-references, another long-range topic, …</p>
+  <p>For nanochat-d20: <em>H = 10 heads, D = 128 per head</em>.</p>
+
+  <h3>The three projections</h3>
+  <pre class="code"><code class="language-python">self.c_q = Linear(d_model, n_head    * head_dim, bias=False)
+self.c_k = Linear(d_model, n_kv_head * head_dim, bias=False)
+self.c_v = Linear(d_model, n_kv_head * head_dim, bias=False)</code></pre>
+  <p>Notice <code class="inl">c_q</code> uses <code class="inl">n_head</code> while <code class="inl">c_k</code> and <code class="inl">c_v</code> use <code class="inl">n_kv_head</code>. With nanochat-d20's config (n_head=10, n_kv_head=5), Q gets all 10 heads but K and V get only 5. This is <strong>Grouped-Query Attention</strong>.</p>
+
+  <h3>How GQA shares</h3>
+  <p>The 10 query heads are bundled into 5 <em>groups</em> of 2. Each group shares a single (K, V) pair:</p>
+  <div class="math-block" data-tex="\\text{Q}_{0}, \\text{Q}_{1} \\to (K_0, V_0), \\quad \\text{Q}_{2}, \\text{Q}_{3} \\to (K_1, V_1), \\quad \\ldots"></div>
+  <p>When computing <code class="inl">QKᵀ</code>, the KV head is broadcast (repeated) across its group. Flash Attention handles this broadcasting natively — no memory copy needed.</p>
+
+  <h3>Why GQA matters</h3>
+  <p>At inference, the bottleneck is <strong>memory bandwidth</strong>, not compute. Every decode step reads the entire K/V cache from memory for every layer. With GQA, that cache is half the size:</p>
+  <div class="math-block" data-tex="\\text{KV memory} = n\\_layers \\times T \\times n\\_kv\\_head \\times head\\_dim"></div>
+  <p>Cutting <code class="inl">n_kv_head</code> from 10 to 5 halves the KV cache, halves the memory bandwidth, roughly doubles tokens/sec. Quality cost is small and often negligible.</p>
+
+  <h3>One more wrinkle: shapes for Flash Attention 3</h3>
+  <p>nanochat keeps the layout as <code class="inl">(B, T, H, D)</code> — sequence dim before head dim. That's FA3-native and saves a transpose. Older PyTorch code often uses <code class="inl">(B, H, T, D)</code>.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Multi-Head Attention (MHA)<span class="verdict meh">classic</span></div><div class="alt-desc">Every Q head has its own K and V head (n_kv_head = n_head). <strong>Pro:</strong> highest quality per parameter. <strong>Con:</strong> largest KV cache; bandwidth-bound at decode.</div></div>
+    <div class="alt"><div class="alt-name">Multi-Query Attention (MQA)<span class="verdict meh">cheap</span></div><div class="alt-desc">All Q heads share a single K and V head (n_kv_head = 1). <strong>Pro:</strong> minimal KV cache. <strong>Con:</strong> small but noticeable quality drop, especially on long contexts.</div></div>
+    <div class="alt"><div class="alt-name">Multi-Head Latent Attention<span class="verdict win">new hotness</span></div><div class="alt-desc">DeepSeek's MLA: compress K/V into a low-rank latent before caching, decompress on read. <strong>Pro:</strong> even smaller cache than GQA. <strong>Con:</strong> more complex, newer; not in nanochat yet.</div></div>
+    <div class="alt"><div class="alt-name">No multi-head (one head)<span class="verdict lose">brittle</span></div><div class="alt-desc">One giant attention over the full d_model. Empirically worse at the same compute — multi-head specialization matters.</div></div>
+    <div class="alt"><div class="alt-name">GQA (group size 2)<span class="verdict used">used</span></div><div class="alt-desc">Modern sweet spot. Llama-2/3, Mistral, nanochat. ~50% KV-cache savings vs MHA at near-zero quality cost.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 07 — Value residual (ResFormer)
+// =============================================================================
+CONCEPTS.push({
+  id: 'vres', num: '07', tag: 'CausalSelfAttention · gpt.py:97',
+  title: 'Value residual',
+  deck: 'A second residual stream — running on values, not on hidden states. Specific layers add a gated shortcut from an earlier layer\'s V.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>The main residual stream (stage 05) carries the model's running hidden state forward across blocks. But the <em>value</em> tensor — the actual content that attention dispatches around — is recomputed from scratch inside every block. Information learned early about "what content is associated with each position" has to be re-derived layer after layer.</p>
+  <p>Value residual (the ResFormer trick) wires a second skip connection through the network, but this one connects <strong>V's</strong> across blocks. A V tensor produced early in the stack can be carried — with a learned gate — into the V tensors of later blocks. The model gets to reuse content directly, not just hidden-state derivatives of it.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine a relay race where each runner carries a baton. The main residual stream is the runners themselves; the value residual is a parallel courier system that carries a copy of the original baton straight to any later runner who asks for it. Most don't ask; the ones who do save themselves the time of reconstructing it.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>Standard behavior — what every transformer until ~2024 does. The model still works; it just has to re-encode any content it needs in V on every layer. Value residual is a small additional connectivity that empirically gives a percent or two of perplexity improvement. Cheap to add (one extra gate, one extra add per gated layer), so why not.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>Which layers carry a value residual</h3>
+  <p>Not every layer. The pattern in nanochat: <strong>layer 0 always emits a V to share</strong>; then alternating layers (1, 3, 5, …) and the last layer add it. This gives an "x ray" of V access through the stack without doubling the work everywhere.</p>
+
+  <h3>The gated add</h3>
+  <p>Inside the attention forward of a gated layer, just after computing V from <code class="inl">c_v(x)</code>:</p>
+  <pre class="code"><code class="language-python">if ve is not None:
+    ve_gate = 3 * torch.sigmoid(self.ve_gate(x[..., :12]))   # (B, T, 1)
+    v = v + ve_gate.unsqueeze(-1) * ve</code></pre>
+  <div class="math-block" data-tex="v_\\ell \\leftarrow v_\\ell + g \\cdot v_{\\text{share}}, \\quad g = 3 \\sigma(W_{ve} \\cdot x[:12])"></div>
+
+  <h3>Why the 3× multiplier?</h3>
+  <p>Sigmoid alone outputs values in <code class="inl">(0, 1)</code> — only attenuation is possible. Multiplying by 3 expands the range to <code class="inl">(0, 3)</code>, so the gate can both <em>amplify</em> and attenuate the residual. The model can decide an early V is more useful than the current one and weight it accordingly.</p>
+
+  <h3>Why look at only 12 channels for the gate?</h3>
+  <p>Same logic as smear: the gate doesn't need rich input. A 12-channel slice of <code class="inl">x</code> gives a small, learned summary; the linear is then just <code class="inl">12 → 1</code> parameters. Total overhead per gated layer is ~12 params plus one elementwise multiply-add. Negligible.</p>
+
+  <h3>Where does v_share come from?</h3>
+  <p>The forward pass passes a list <code class="inl">ve_list[layer_idx]</code> into each block. nanochat populates it so gated layers see the V from layer 0 (the first layer's value tensor), giving every gated layer a direct connection to the input-layer V. Variations could route different sources per layer.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">No value residual<span class="verdict meh">standard</span></div><div class="alt-desc">Vanilla transformer. Every block computes its own V from its own input. Works fine; value residual is an additive improvement.</div></div>
+    <div class="alt"><div class="alt-name">Ungated residual (v + ve)<span class="verdict lose">unstable</span></div><div class="alt-desc">Just add the early V to every layer's V, no gating. <strong>Con:</strong> dominates the signal at deep layers; training becomes unstable. The gate is the load-bearing part.</div></div>
+    <div class="alt"><div class="alt-name">Gated Q residual<span class="verdict meh">untested</span></div><div class="alt-desc">Same trick but on the query tensor. In principle plausible; in practice value residual is the better lever, and the literature focuses there.</div></div>
+    <div class="alt"><div class="alt-name">Cross-layer attention<span class="verdict lose">expensive</span></div><div class="alt-desc">Add explicit cross-attention from layer <em>ℓ</em> to layer <em>0</em>'s KV. <strong>Pro:</strong> very rich. <strong>Con:</strong> doubles attention compute on every gated layer. ResFormer's elegance is that it adds nothing inside attention — just a pre-attention V tweak.</div></div>
+    <div class="alt"><div class="alt-name">Gated additive ResFormer<span class="verdict used">used</span></div><div class="alt-desc">Sparse layer subset, tiny gate, one add. Cheapest possible "info shortcut on V". nanochat's choice, following the ResFormer paper.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 08 — Rotary
+// =============================================================================
+CONCEPTS.push({
+  id: 'rope', num: '08', tag: 'rotary helpers · gpt.py:43',
+  title: 'Rotary positional embeddings',
+  deck: 'Attention is position-blind by default. Rotary tells the model where each token is by rotating Q and K in 2D planes — by an angle proportional to position.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>Attention computes <code class="inl">QKᵀ</code> — every query looks at every key. But the dot product <em>doesn't know order</em>. If you shuffled the tokens, you'd get the same attention scores. <em>"dog bites man"</em> would attend identically to <em>"man bites dog"</em>. That's a problem: word order carries meaning.</p>
+  <p>So we need to inject position information into the model. Specifically, we want <code class="inl">QKᵀ</code> to depend on the <strong>relative</strong> position of the two tokens, not just their content. That's what rotary positional embedding (RoPE) does.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine two compass needles. Their alignment (dot product) tells you how related they are. RoPE adds a small twist to each needle proportional to its sequence position. When you compare them, the relative twist depends only on the <em>distance</em> between positions — not on the absolute positions. Word 5 attending to word 3 sees the same "twist offset" as word 105 attending to word 103.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>The model would treat the sequence as a bag of tokens. It might still memorize that <em>"the cat sat on the mat"</em> is a common sentence (via co-occurrence), but it couldn't reliably do anything that depends on order: arithmetic, code, parsing, dialogue turn-taking. Position information is non-negotiable for language modeling.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The key idea</h3>
+  <p>For each head, split the head_dim (here, 128) into 64 pairs. Treat each pair as the <em>(x, y)</em> coordinates of a point in a 2D plane. Rotate that point by an angle <code class="inl">θ</code> proportional to the token's sequence position.</p>
+  <div class="math-block" data-tex="\\begin{bmatrix} x_1' \\\\ x_2' \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix}"></div>
+  <p>Do this independently for every (x, y) pair, with a <strong>different angular speed</strong> per pair. The result: each Q and K vector gets stamped with a fingerprint of its position. When you compute <code class="inl">Q · K</code> for two tokens at positions <em>m</em> and <em>n</em>, the math works out so the dot product is a function of <code class="inl">(m - n)</code> — relative position.</p>
+
+  <h3>The half-split convention</h3>
+  <p>There are two equivalent ways to pick the (x, y) pairs:</p>
+  <ul>
+    <li><strong>Interleaved</strong> (original RoPE paper): pair channel 0 with 1, 2 with 3, … Cleaner notation, more memory shuffling on the GPU.</li>
+    <li><strong>Half-split</strong> (nanochat, Llama): split the head_dim in half. Pair channel 0 with channel 64, 1 with 65, … Equivalent in expressive power, more friendly to vectorization.</li>
+  </ul>
+  <p>nanochat's code:</p>
+  <pre class="code"><code class="language-python">def apply_rotary_emb(x, cos, sin):
+    d = x.size(-1) // 2
+    x1 = x[..., :d]
+    x2 = x[..., d:]
+    y1 = x1 * cos + x2 * sin
+    y2 = -x1 * sin + x2 * cos
+    return torch.cat([y1, y2], dim=-1)</code></pre>
+
+  <h3>The angular-speed schedule</h3>
+  <p>Each of the 64 pairs gets its own frequency:</p>
+  <div class="math-block" data-tex="\\theta_k(t) = t \\cdot 10000^{-2k/D}, \\quad k = 0, 1, \\ldots, D/2 - 1"></div>
+  <p>Low-k pairs rotate <em>fast</em> (one full revolution every ~few tokens — encodes <strong>local</strong> position). High-k pairs rotate <em>slowly</em> (one full revolution over many thousands of tokens — encodes <strong>global</strong> position). The model can pick which frequencies to listen to per head.</p>
+
+  <h3>Precompute everything</h3>
+  <p>The <code class="inl">cos</code> and <code class="inl">sin</code> values depend only on position and head-dim — not on the input. nanochat precomputes them once (for <code class="inl">sequence_len × 10</code> positions, leaving headroom) and stores as a buffer. At forward time it's just two element-wise multiplies and an add.</p>
+
+  <h3>Where is it applied?</h3>
+  <p>Only to Q and K, never to V. V doesn't need positional information — it's the content that gets dispatched, not the matchmaker. After rotation, Q and K go straight to <code class="inl">QKᵀ</code> for attention.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Sinusoidal additive (original)<span class="verdict meh">2017 default</span></div><div class="alt-desc">Add a fixed sinusoidal vector to the input embedding. <strong>Pro:</strong> simple, no learned params. <strong>Con:</strong> absolute position only; doesn't extrapolate as cleanly as RoPE; mixes position info into the embedding stream where the model has to disentangle it.</div></div>
+    <div class="alt"><div class="alt-name">Learned absolute positional<span class="verdict lose">no extrapolation</span></div><div class="alt-desc">Look up a learned vector per position, add to embedding. <strong>Pro:</strong> simple. <strong>Con:</strong> caps the max length at training time; the model has nothing useful for positions it never saw.</div></div>
+    <div class="alt"><div class="alt-name">ALiBi<span class="verdict meh">extrapolates well</span></div><div class="alt-desc">Add a linear bias to <code class="inl">QKᵀ</code> proportional to distance: <code class="inl">-m · (i-j)</code>. <strong>Pro:</strong> dead simple, extrapolates beyond training length. <strong>Con:</strong> less flexible than RoPE; harder to adapt for retrieval-style long contexts.</div></div>
+    <div class="alt"><div class="alt-name">No position info<span class="verdict lose">fails</span></div><div class="alt-desc">Models become bags-of-words. Don't do this.</div></div>
+    <div class="alt"><div class="alt-name">RoPE (half-split)<span class="verdict used">used</span></div><div class="alt-desc">Llama, Mistral, nanochat. Relative-position encoding through rotation; precomputed; extrapolates well with NTK / YaRN tricks; the 2025 standard.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 09 — QK-norm
+// =============================================================================
+CONCEPTS.push({
+  id: 'qknorm', num: '09', tag: 'CausalSelfAttention · gpt.py:107',
+  title: 'QK-norm',
+  deck: 'Right before the dot product, Q and K each get RMS-normalized along the head dimension and scaled by 1.2. A small, stabilizing trick.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>Attention computes a softmax over <code class="inl">QKᵀ / √D</code>. The softmax is exquisitely sensitive to the scale of its inputs:</p>
+  <ul>
+    <li>If logits are too <strong>large</strong> (say, ±50), softmax saturates into a near-one-hot distribution — attention collapses onto a single token. The gradient through softmax becomes essentially zero. Learning stalls.</li>
+    <li>If logits are too <strong>small</strong> (say, ±0.01), softmax is nearly uniform — attention is doing no useful selection.</li>
+  </ul>
+  <p>The classical fix is the <code class="inl">1/√D</code> scaling (with random Q, K of unit-variance components, the dot product has variance D, so this normalizes it back). But in practice, during training, Q and K norms drift — there's nothing forcing them to stay unit-variance. The model can wander into the saturated regime.</p>
+  <p>QK-norm hardcodes the fix. Before the dot product, force Q and K to unit RMS. Then a small fixed scale (1.2 in nanochat) restores the desired sharpness.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Think of two volume knobs on a stereo. The downstream amplifier (softmax) has a narrow sweet spot — too low you hear nothing, too high it clips. QK-norm puts both volume knobs on a fixed setting before the signal hits the amp, so the model always operates in the sweet spot regardless of how the upstream layers have evolved.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>Vanilla scaled-dot-product attention still works, but at large scale or with long training runs, models occasionally drift into the saturated regime — attention "explodes" or "collapses". You see this as sudden loss spikes or dead heads. QK-norm makes these failure modes essentially impossible. Cost: two tiny normalize ops per attention layer. Worth it.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>Two RMSNorms</h3>
+  <p>After rotary (stage 08), Q and K are RMS-normalized along the head_dim axis (not d_model — each head is normalized independently):</p>
+  <pre class="code"><code class="language-python">q = F.rms_norm(q, (q.size(-1),))   # along head_dim
+k = F.rms_norm(k, (k.size(-1),))
+q = q * 1.2
+k = k * 1.2</code></pre>
+  <p>Each Q vector now has unit RMS magnitude — pointing in the same direction it was pointing, just rescaled. Same for K.</p>
+
+  <h3>The 1.2 scale</h3>
+  <p>After QK-norm, both vectors have norm ≈ √D (since RMS = 1 implies ‖x‖ ≈ √D). Their dot product is bounded by D in the worst case (perfectly aligned), and 0 in expectation for random vectors. The standard <code class="inl">1/√D</code> scaling then gives logits in a tight range — too tight, actually, for softmax to discriminate.</p>
+  <p>The fixed 1.2 multiplier on both Q and K restores some of the spread:</p>
+  <div class="math-block" data-tex="\\text{attn logits} = \\frac{(1.2 \\hat{q}) \\cdot (1.2 \\hat{k})}{\\sqrt{D}} = \\frac{1.44}{\\sqrt{D}} \\hat{q} \\cdot \\hat{k}"></div>
+  <p>Why 1.2 specifically? Empirical sweet spot. Big enough to keep softmax sharp; small enough not to saturate. The model can no longer cheat by growing Q/K norms (the norm step kills that), so this scale is fixed.</p>
+
+  <h3>Two-sided scaling</h3>
+  <p>You might wonder why the scale is split between Q and K (1.2 on each → 1.44 total) instead of applied once to one of them. Flash Attention's kernel actually multiplies Q and K separately during its tiled computation; splitting the scale aligns with how FA does the math and avoids precision issues.</p>
+
+  <h3>Per-head, not per-d_model</h3>
+  <p>Critically, the RMS is computed along <em>head_dim</em>, not along the full hidden dim. Each of the 10 query heads is independently normalized. This is what makes QK-norm a sub-layer-level operation, not just a redundant copy of the block-level RMSNorm.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">No QK-norm (1/√D only)<span class="verdict meh">classic</span></div><div class="alt-desc">Standard scaled-dot-product. Used by GPT-2/3 and many models. Works most of the time but can drift under long training; large models sometimes need ad-hoc fixes (gradient clipping, qk-clip).</div></div>
+    <div class="alt"><div class="alt-name">Logit clipping<span class="verdict meh">band-aid</span></div><div class="alt-desc">Hard-clamp <code class="inl">QKᵀ</code> to ±C before softmax. Stops blow-ups but is non-smooth; QK-norm is the smoother, more principled fix.</div></div>
+    <div class="alt"><div class="alt-name">Tanh-bounded logits<span class="verdict meh">smooth clip</span></div><div class="alt-desc">Apply <code class="inl">tanh(α · logits) / α</code>. Smooth squashing. Used by Gemma 2 alongside other tricks. Adds a hyperparam; QK-norm achieves similar stability more directly.</div></div>
+    <div class="alt"><div class="alt-name">Cosine attention<span class="verdict meh">over-correcting</span></div><div class="alt-desc">Normalize Q and K to unit L2 norm, dot product is exactly cosine similarity. Stable but often too constrained — the model loses an expressive degree of freedom in attention magnitude.</div></div>
+    <div class="alt"><div class="alt-name">RMSNorm + fixed scale<span class="verdict used">used</span></div><div class="alt-desc">nanochat's choice. RMS-normalize each head's Q and K, then multiply by 1.2 to restore softmax sharpness. Clean, stable, no extra hyperparams to tune at scale.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 10 — Attention + sliding window
+// =============================================================================
+CONCEPTS.push({
+  id: 'attn', num: '10', tag: 'flash_attn · gpt.py:117',
+  title: 'Causal attention with sliding window',
+  deck: 'The heart of the transformer. Each token aggregates information from previous tokens, weighted by Q·K similarity. Sliding window caps how far back each token can look.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>This is <em>the</em> operation that makes transformers work. For each token, decide which earlier tokens are relevant and what to take from them, then form a weighted sum. Conceptually:</p>
+  <ol>
+    <li>For each query <em>i</em>, compute its similarity score to every preceding key <em>j</em>.</li>
+    <li>Pass scores through softmax → attention weights (positive, sum to 1).</li>
+    <li>Output for position <em>i</em> = weighted sum of values, weighted by those attention weights.</li>
+  </ol>
+  <p>Two constraints in nanochat:</p>
+  <ul>
+    <li><strong>Causal</strong>: position <em>i</em> can only attend to positions ≤ <em>i</em>. The model must predict next tokens from past tokens only — no peeking.</li>
+    <li><strong>Sliding window</strong>: position <em>i</em> can only attend to positions in <code class="inl">[i - W, i]</code>. On most layers, W is small (512 here) — local attention. On the last layer, W = full sequence — global mixing.</li>
+  </ul>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine writing the next word of a story. You re-read the last paragraph (sliding window: cheap, local context), and once in a while you re-read the whole story for the broader arc (global layer: expensive, used sparingly). nanochat tiles 3 paragraph-readers, 1 whole-story reader, repeated through the stack.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we used full attention everywhere?</div>
+    <p>Attention cost is <code class="inl">O(T²)</code> per layer. At T = 2048 that's manageable; at T = 32k it's a problem; at T = 1M it's catastrophic. Sliding window flips the cost to <code class="inl">O(T · W)</code> — linear in T with a fixed W. The cost is real but small: a context-length-32k task with W=512 has each token seeing only the last 512 tokens directly. The global layer at the end stitches longer-range info back in via the residual stream. This pattern (mostly local + occasional global) is the workhorse of every modern long-context model.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The math, in symbols</h3>
+  <div class="math-block" data-tex="\\text{Attention}(Q, K, V) = \\text{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{D}} + M\\right) V"></div>
+  <p>Here <code class="inl">M</code> is the mask — a matrix of zeros and <code class="inl">-∞</code>. The causal-plus-window mask:</p>
+  <div class="math-block" data-tex="M_{i,j} = \\begin{cases} 0 & \\text{if } i - W \\le j \\le i \\\\ -\\infty & \\text{otherwise} \\end{cases}"></div>
+  <p>The <code class="inl">-∞</code> entries become zero after softmax (<code class="inl">e^{-∞} = 0</code>), so those positions contribute nothing.</p>
+
+  <h3>The naive computation</h3>
+  <ol>
+    <li>Compute the <code class="inl">T × T</code> matrix <code class="inl">QKᵀ</code>. Costs <code class="inl">O(T² · D)</code> compute, <code class="inl">O(T²)</code> memory.</li>
+    <li>Apply mask, scale, softmax.</li>
+    <li>Multiply by V. Output is <code class="inl">T × D</code>.</li>
+  </ol>
+  <p>The memory cost is the killer: the <code class="inl">T × T</code> matrix at T=8192 is 64M entries per head per layer. At fp16, that's 128 MB <em>per head</em>, billions of bytes total. Won't fit.</p>
+
+  <h3>Flash Attention 3 (what nanochat actually calls)</h3>
+  <p>Flash Attention computes the same math <strong>without materializing</strong> the <code class="inl">T × T</code> matrix. It processes Q, K, V in tiles that fit in fast on-chip SRAM, streams through them, maintaining a running softmax (the "online softmax" trick). End-to-end the algebra is identical to the naive version, but memory cost drops to <code class="inl">O(T · D)</code> and wall-clock time drops 2-4×.</p>
+  <pre class="code"><code class="language-python">y = flash_attn_func(
+    q, k, v,
+    causal=True,
+    window_size=(window_size_left, 0),
+)</code></pre>
+  <p>The <code class="inl">window_size=(left, right)</code> argument is FA3's built-in support for sliding windows. We pass <code class="inl">right=0</code> (no future tokens allowed) for causal LM.</p>
+
+  <h3>The window pattern</h3>
+  <p>nanochat's <code class="inl">window_pattern = "SSSL"</code> is tiled across the 20 layers: S (short=512), S, S, L (long=2048), S, S, S, L, … The last layer is forced to L regardless. So out of 20 layers, ~5 are global. The rest run on the much cheaper local mask.</p>
+
+  <h3>One reshape</h3>
+  <p>FA3 expects <code class="inl">(B, T, H, D)</code> and returns the same shape. After attention, nanochat flattens the last two dims and runs the output projection (a single linear) to mix the heads back into d_model.</p>
+  <pre class="code"><code class="language-python">y = y.view(B, T, -1)
+y = self.c_proj(y)</code></pre>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Full causal attention<span class="verdict meh">expensive long</span></div><div class="alt-desc">No window. Standard for short-context models. <strong>Pro:</strong> every token sees everything, max quality. <strong>Con:</strong> O(T²) doesn't scale to long contexts.</div></div>
+    <div class="alt"><div class="alt-name">Linear / kernel attention<span class="verdict lose">quality drop</span></div><div class="alt-desc">Replace softmax with a kernel approximation; attention becomes O(T) in compute. <strong>Pro:</strong> linear cost. <strong>Con:</strong> noticeable quality drop in language modeling.</div></div>
+    <div class="alt"><div class="alt-name">Mamba / State-space models<span class="verdict win">growing</span></div><div class="alt-desc">Replace attention with a learnable linear recurrence. O(T) compute, constant-memory decode. <strong>Pro:</strong> long-context friendly, fast decode. <strong>Con:</strong> hybrid setups (attention + Mamba) tend to be the winners; pure SSMs trail on retrieval / in-context tasks.</div></div>
+    <div class="alt"><div class="alt-name">Mixture-of-Experts attention<span class="verdict meh">complex</span></div><div class="alt-desc">Route different tokens through different attention "experts". <strong>Pro:</strong> more parameters, less compute per token. <strong>Con:</strong> harder to train, harder to serve.</div></div>
+    <div class="alt"><div class="alt-name">FA3 + sliding window<span class="verdict used">used</span></div><div class="alt-desc">Pragmatic, mainstream. Cheap local layers + a few global layers. Same algebra as full attention, just masked. nanochat's choice.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 11 — MLP (ReLU²)
+// =============================================================================
+CONCEPTS.push({
+  id: 'mlp', num: '11', tag: 'MLP · gpt.py:129',
+  title: 'MLP with ReLU²',
+  deck: 'Attention mixes information across positions; the MLP transforms each position independently. The activation here is ReLU squared — cheap and effective.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>Attention is essentially a weighted sum operation. Without a nonlinearity, a stack of attention layers is itself just a weighted sum — you can't represent anything that requires a genuine nonlinear function (curves, thresholds, gates, "if-then" logic).</p>
+  <p>The MLP supplies the nonlinearity. After attention has mixed information across positions, the MLP runs <strong>independently on each position</strong>, projecting it up into a bigger feature space, applying a nonlinear function, and projecting back down. This is where the model does most of its actual "computation" per token — pattern recognition, fact lookup, transformation.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Attention is "talking with your neighbors and gathering opinions"; MLP is "going home and thinking it through alone". They alternate: gather context → think → gather → think. The MLP is the moment the model gets to actually <em>process</em> what it heard.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>You'd have an "attention-only transformer" — a model with no per-position nonlinearity. It would degenerate to a (very expensive) linear map. Empirically, attention-only models are dramatically weaker; the MLP is responsible for roughly 2/3 of the parameters and a similar share of the model's actual reasoning capacity.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The three steps</h3>
+  <pre class="code"><code class="language-python">class MLP(nn.Module):
+    def __init__(self, config):
+        self.c_fc   = Linear(d_model, 4 * d_model, bias=False)
+        self.c_proj = Linear(4 * d_model, d_model, bias=False)
+    def forward(self, x):
+        x = self.c_fc(x)         # project UP   (d → 4d)
+        x = F.relu(x).square()   # nonlinearity  (4d → 4d, elementwise)
+        x = self.c_proj(x)       # project DOWN (4d → d)
+        return x</code></pre>
+  <div class="math-block" data-tex="\\text{MLP}(x) = W_2 \\cdot \\big(\\text{ReLU}(W_1 x)\\big)^2, \\quad W_1 \\in \\mathbb{R}^{4d \\times d}, \\; W_2 \\in \\mathbb{R}^{d \\times 4d}"></div>
+
+  <h3>Why a 4× expansion?</h3>
+  <p>You need somewhere bigger to "work" before projecting back to the residual stream. Empirically, 4× is the sweet spot — wide enough that the model has room to compute, narrow enough to keep parameter cost reasonable. Almost every transformer since 2017 uses 4× (or close to it; some SwiGLU variants use ~2.67× because they have 3 matrices instead of 2).</p>
+
+  <h3>Why ReLU²?</h3>
+  <p>ReLU² is <code class="inl">max(0, x)²</code> — kill the negatives, then square the rest. It comes from the Primer paper (Google, 2021), which searched over activation functions for transformers.</p>
+  <ul>
+    <li>Cheap: one max, one multiply. No exp / tanh / erf.</li>
+    <li>Smooth at zero (unlike ReLU, which has a kink). Easier gradient.</li>
+    <li>Monotonic and unbounded above — preserves a lot of dynamic range.</li>
+    <li>Slightly outperforms GELU at small scale.</li>
+  </ul>
+
+  <h3>Compare it to GELU and SwiGLU</h3>
+  <p>GELU is the GPT-2/3 standard: <code class="inl">x · Φ(x)</code>, a smooth approximation to "ReLU but with a soft transition". Roughly equivalent to ReLU² in quality but more expensive.</p>
+  <p>SwiGLU (used by Llama) is a gated variant: <code class="inl">(W_1 x) · σ(W_3 x)</code>, then project. Slightly better than ReLU²/GELU at scale but adds a third matrix multiplication, increasing compute and params.</p>
+
+  <h3>One thing not in the MLP</h3>
+  <p>No bias. Both <code class="inl">c_fc</code> and <code class="inl">c_proj</code> are <code class="inl">bias=False</code>. Biases were dropped from modern transformer MLPs years ago — they add params, save no perplexity. The model can absorb any offset into the preceding RMSNorm's downstream layer.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">ReLU<span class="verdict meh">old default</span></div><div class="alt-desc"><code class="inl">max(0, x)</code>. Sharp kink at zero, gradient is exactly 0 or 1. Was standard for years; superseded for transformers by smoother nonlinearities.</div></div>
+    <div class="alt"><div class="alt-name">GELU<span class="verdict meh">standard 2018-22</span></div><div class="alt-desc"><code class="inl">x · Φ(x)</code>. Smooth, mildly non-monotonic, used by GPT-2/3, BERT. Slightly slower than ReLU² for similar quality.</div></div>
+    <div class="alt"><div class="alt-name">SwiGLU<span class="verdict win">best at scale</span></div><div class="alt-desc">Gated: <code class="inl">(W_1 x) · SiLU(W_3 x)</code>, then project. <strong>Pro:</strong> small but consistent quality bump. <strong>Con:</strong> 3 matrices, ~50% more MLP params at the same hidden width. Llama, Mistral, most 2024+ frontier models.</div></div>
+    <div class="alt"><div class="alt-name">GeGLU<span class="verdict win">competitive</span></div><div class="alt-desc">Same as SwiGLU but with GELU instead of SiLU as the gate. T5-NLG, PaLM. Equivalent quality.</div></div>
+    <div class="alt"><div class="alt-name">ReLU² (Primer)<span class="verdict used">used</span></div><div class="alt-desc">Squared ReLU. Cheap, smooth, slightly better than GELU at nanochat's scale. The right pick when you want a no-frills 2-matrix MLP.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 12 — Backout
+// =============================================================================
+CONCEPTS.push({
+  id: 'backout', num: '12', tag: 'forward · gpt.py:466',
+  title: 'Backout',
+  deck: 'A snapshot of the residual stream is taken at the midpoint of the network and subtracted from the final state. A correction term, not an addition.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>In a standard residual transformer, every block <em>adds</em> to the residual stream — never subtracts. So the residual stream can only grow, never shrink. That's an asymmetry: the model can amplify information but has a hard time downweighting earlier contributions even when they'd be harmful for the final answer.</p>
+  <p>Backout adds the symmetric capability. Halfway through the stack, the model takes a snapshot. At the very end, it subtracts a learned scalar multiple of that snapshot. The second half of the network gets to <em>correct</em> the first half — saying, in effect, "we built up a representation in layers 0–10 that we now want to partially walk back".</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine writing a draft, then on revision you don't just add new paragraphs — you can also strike through earlier passages. Backout gives the second half of the network that "strike-through" power. Without it, the model can only ever pile more layers on top of its first impressions.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>Most transformers don't have backout, and they work fine. It's a small architectural extra. nanochat adds it because empirically deeper models train more stably with this mechanism — the loss curves are flatter, no mysterious mid-training divergence. Cost is essentially nothing: one snapshot tensor plus one learned scalar plus one elementwise subtract.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The mechanism</h3>
+  <pre class="code"><code class="language-python">self.backout_layer = self.config.n_layer // 2   # 10 for d20
+
+for layer_idx in range(self.config.n_layer):
+    ...
+    x = self.transformer.h[layer_idx](x, ...)
+    if layer_idx == self.backout_layer:
+        x_backout = x
+
+# After the loop, before the final norm:
+x = x - self.backout_lambda * x_backout</code></pre>
+  <div class="math-block" data-tex="x_{\\text{final}} = x_{\\text{layer}\\,N} - \\lambda \\cdot x_{\\text{layer}\\,N/2}"></div>
+
+  <h3>The learned scalar</h3>
+  <p><code class="inl">backout_lambda</code> is a single <code class="inl">nn.Parameter</code> (one number). Initialized small (e.g. 0.1) and adjusted by gradient descent. The model can dial it to zero to effectively disable backout, or grow it to subtract more strongly. In trained nanochat checkpoints it ends up in the 0.1-0.5 range typically.</p>
+
+  <h3>Why the midpoint specifically?</h3>
+  <p>Empirical choice. Subtracting the layer-0 input would be equivalent to "skip the first half of the model entirely". Subtracting the layer-N-1 output would be just zeroing out the final state. The midpoint is a Goldilocks spot — enough processing has happened that the snapshot is non-trivial, and enough processing remains that the second half can productively respond to it.</p>
+
+  <h3>Mathematical interpretation</h3>
+  <p>You can read backout as a kind of <strong>U-Net-style skip connection</strong>, where the early-stage representation is fed back into the late stage. In U-Nets the skip is concatenated (additive on the residual stream); here it's subtracted (a correction). The sign matters: subtraction gives the model an explicit "anti-residual" channel.</p>
+
+  <h3>Cost</h3>
+  <p>Memory: one extra tensor of shape <code class="inl">(B, T, d)</code> held for the second half of the forward pass. Compute: one scalar multiply plus one tensor subtraction, both negligible. Params: one extra scalar. By far the cheapest architectural trick in nanochat.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">No backout<span class="verdict meh">standard</span></div><div class="alt-desc">Default behavior of most transformers. Works; backout is a small additive tweak.</div></div>
+    <div class="alt"><div class="alt-name">U-Net skip (additive)<span class="verdict meh">memory cost</span></div><div class="alt-desc">Concatenate or add an early-layer snapshot back at the end. <strong>Pro:</strong> richer information flow. <strong>Con:</strong> concatenation doubles channel width temporarily; addition doesn't give the "correction" semantics of subtraction.</div></div>
+    <div class="alt"><div class="alt-name">DeepNorm<span class="verdict meh">orthogonal</span></div><div class="alt-desc">Rescale residual contributions by a depth-dependent factor for very deep models. <strong>Pro:</strong> stabilizes 1000-layer transformers. <strong>Con:</strong> overkill for d=20; backout solves the milder version of the same problem.</div></div>
+    <div class="alt"><div class="alt-name">Multiple backout points<span class="verdict meh">untested</span></div><div class="alt-desc">Snapshot and subtract at quarters, thirds, etc. Plausible extension; nanochat sticks with a single midpoint snapshot. Diminishing returns are likely.</div></div>
+    <div class="alt"><div class="alt-name">Single-midpoint backout<span class="verdict used">used</span></div><div class="alt-desc">One snapshot, one scalar, one subtract. Almost free; small consistent stability win. nanochat's choice.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 13 — lm_head + softcap
+// =============================================================================
+CONCEPTS.push({
+  id: 'head', num: '13', tag: 'forward · gpt.py:481',
+  title: 'lm_head & softcap',
+  deck: 'After 20 blocks of work, the final hidden state is projected to a logit per vocab token, then squashed through a tanh-softcap to keep magnitudes bounded.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>So far the model has been operating in d_model space (1280-D vectors). To pick the next token, we need a score for every entry in the vocabulary (32,768 of them). The <strong>lm_head</strong> is one final linear projection that produces those scores — called <strong>logits</strong> — for the last position in the sequence.</p>
+  <p>Once we have logits, we turn them into probabilities via softmax (during training, for cross-entropy loss; during inference, for sampling). But raw logits from a deep network can have huge magnitudes — sometimes 50 or 100 in the worst cases — and that wrecks training dynamics. Softcap is a smooth squashing function that bounds logits to <code class="inl">±15</code>.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>The lm_head is a scoring panel: every contestant (vocab token) gets a numerical score from the model. Softcap is the rule "no score can exceed 15 or fall below -15" — but it's a smooth rule, not a clip. Scores in the middle (say, -5 to 5) pass through almost unchanged; scores that try to run away to infinity asymptote toward ±15.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have softcap?</div>
+    <p>You'd get the classic deep-LM problem: occasionally a single logit shoots to +50, the softmax becomes a near-perfect one-hot, gradients vanish, training spikes. Some models survive by clipping gradients aggressively or by careful initialization; nanochat just bounds the logits and is done with it. The cost is a few floating-point operations per token. The math:</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The five lines</h3>
+  <pre class="code"><code class="language-python">x = F.rms_norm(x, (x.size(-1),))               # final norm
+logits = self.lm_head(x)                        # (B, T, vocab_padded)
+logits = logits[..., :self.config.vocab_size]   # slice off pad
+logits = logits.float()                         # to fp32 for stability
+logits = 15 * torch.tanh(logits / 15)           # softcap</code></pre>
+
+  <h3>Final RMSNorm</h3>
+  <p>One last norm on the residual stream before the linear projection. Same RMSNorm-without-params as elsewhere — keeps the input to lm_head in a stable scale.</p>
+
+  <h3>The lm_head projection</h3>
+  <p>A single <code class="inl">Linear(d_model, vocab_padded)</code> with no bias. Recall vocab is padded to a multiple of 64 (32,768 happens to be a multiple of 64 here; if it weren't, we'd round up). Padding makes the matrix multiply hit nice GPU tile sizes.</p>
+  <p>After the multiply we slice off the padded indices — those are not real vocab tokens and we don't want to sample them.</p>
+
+  <h3>Cast to fp32</h3>
+  <p>The rest of the model runs in bf16 for speed, but we cast logits to fp32 before softcap and softmax. Softmax over thousands of values is very sensitive to numerical precision — fp32 here costs almost nothing and prevents subtle bugs.</p>
+
+  <h3>The softcap function</h3>
+  <div class="math-block" data-tex="\\text{softcap}(z; c) = c \\cdot \\tanh\\!\\left(\\frac{z}{c}\\right), \\quad c = 15"></div>
+  <p>Properties:</p>
+  <ul>
+    <li>Near zero, <code class="inl">tanh(z/c) ≈ z/c</code>, so output ≈ z. <strong>Identity for small logits.</strong></li>
+    <li>For large positive z, <code class="inl">tanh → 1</code>, so output → +c = +15. <strong>Bounded above.</strong></li>
+    <li>Smooth, differentiable, no kinks. Gradients flow cleanly.</li>
+  </ul>
+
+  <h3>Why c = 15?</h3>
+  <p>Empirical. Big enough that softmax can still produce confident distributions (logit of 15 vs 0 is <code class="inl">e^15 ≈ 3.3M</code> ratio — plenty of dynamic range). Small enough to dodge the failure modes of unbounded logits. Gemma 2 uses c=30; the right value depends on model and task. Carryover from the Gemma papers.</p>
+
+  <h3>What about weight tying?</h3>
+  <p>Some models tie <code class="inl">lm_head.weight = wte.weight</code>, sharing parameters between embedding and unembedding. nanochat does <strong>not</strong> tie them — separate matrices. Costs more params, trains better on the GPT-2-scale models nanochat targets.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">No softcap (raw logits)<span class="verdict meh">classic</span></div><div class="alt-desc">GPT-2/3 do this. Mostly works; occasional training instabilities at large scale require gradient clipping or learning-rate dampers as workarounds.</div></div>
+    <div class="alt"><div class="alt-name">z-loss<span class="verdict meh">indirect</span></div><div class="alt-desc">Add a small term to the loss that penalizes the log-sum-exp of logits being far from zero. <strong>Pro:</strong> keeps logits bounded statistically. <strong>Con:</strong> doesn't hard-bound any individual logit, requires loss-shape tuning. PaLM used this.</div></div>
+    <div class="alt"><div class="alt-name">Hard clipping<span class="verdict lose">non-smooth</span></div><div class="alt-desc"><code class="inl">clip(z, -15, 15)</code>. <strong>Pro:</strong> simple. <strong>Con:</strong> not differentiable at the boundary; gradient is exactly zero in the clipped region, killing learning signal there.</div></div>
+    <div class="alt"><div class="alt-name">Weight tying (wte = lm_head)<span class="verdict meh">parameter tradeoff</span></div><div class="alt-desc">Share the embedding matrix with the output projection. <strong>Pro:</strong> halves param count for embeddings. <strong>Con:</strong> empirically worse quality at small-to-medium scale; nanochat opts out.</div></div>
+    <div class="alt"><div class="alt-name">tanh-softcap, c=15<span class="verdict used">used</span></div><div class="alt-desc">Smooth, differentiable, bounded. Gemma-style. nanochat's choice; trades a few FLOPs for training stability.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 14 — Sampling
+// =============================================================================
+CONCEPTS.push({
+  id: 'sample', num: '14', tag: 'sample_next_token · engine.py:140',
+  title: 'Sampling',
+  deck: 'Converting a probability distribution over 32k tokens into a single chosen token. Temperature, top-k, and a multinomial draw.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>After lm_head + softcap, the model emits a distribution over the entire vocabulary at every position. To actually generate text, we have to <strong>commit</strong> to one token per step. The naive choice is to always pick the highest-probability token (<em>greedy decoding</em>), but that has well-known pathologies: the output collapses into loops and repetitive boilerplate. On the other extreme, sampling purely from the distribution as-is occasionally picks bizarre low-probability tokens that derail the generation.</p>
+  <p>Sampling-with-temperature-and-top-k is the standard middle ground: shape the distribution slightly to remove the long tail of unlikely tokens, then draw a sample. Cheap, simple, and the foundation of most chat models.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine ordering off a menu. <strong>Greedy</strong> = always get the chef's #1 recommendation; you eat the same dish every time. <strong>Pure sampling</strong> = roll a die over the whole menu; you might get a wonderful surprise or a baffling dish you've never heard of. <strong>Top-k + temperature</strong> = the waiter shows you the top 50 most popular dishes for your meal preference (top-k), then you flip a coin biased toward the chef's favorites (temperature).</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we used greedy?</div>
+    <p>Generations become deterministic, repetitive, and dull. Ask the same question twice, get the same answer. Worse, certain prompt structures cause greedy decoders to fall into loops: "I think therefore I think therefore I think therefore …". You can build code-completion or factoid systems on greedy, but for any open-ended generation you need sampling.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The three-step pipeline</h3>
+  <pre class="code"><code class="language-python">def sample_next_token(logits, temperature=1.0, top_k=50, generator=None):
+    if temperature == 0.0:
+        return torch.argmax(logits, dim=-1)         # greedy shortcut
+    logits = logits / temperature                   # 1. temperature
+    if top_k is not None and top_k > 0:
+        v, ix = torch.topk(logits, k=top_k, dim=-1) # 2. top-k truncation
+        probs = F.softmax(v, dim=-1)                # 3. softmax over survivors
+        choice = torch.multinomial(probs, num_samples=1, generator=generator)
+        return ix.gather(-1, choice).squeeze(-1)    # multinomial draw</code></pre>
+
+  <h3>Step 1 — Temperature</h3>
+  <p>Divide every logit by a positive number T. After softmax:</p>
+  <div class="math-block" data-tex="p_i = \\frac{e^{z_i / T}}{\\sum_j e^{z_j / T}}"></div>
+  <ul>
+    <li><strong>T = 1.0</strong>: no change.</li>
+    <li><strong>T &lt; 1.0</strong> (e.g. 0.5): sharpens the distribution. Confident becomes more confident, unlikely becomes more unlikely. Outputs become more deterministic.</li>
+    <li><strong>T &gt; 1.0</strong> (e.g. 1.5): flattens the distribution. Outputs become more random, more diverse.</li>
+    <li><strong>T → 0</strong>: distribution collapses to a one-hot on the argmax — equivalent to greedy. nanochat shortcuts this case to skip the softmax/multinomial work.</li>
+  </ul>
+
+  <h3>Step 2 — Top-k truncation</h3>
+  <p>Keep only the k logits with the highest values; set the rest to <code class="inl">-∞</code> (so they get zero probability after softmax). This removes the long tail of weird tokens entirely. Typical k for chat: 40–100.</p>
+  <p>Implementation note: <code class="inl">torch.topk</code> returns both values and indices. We softmax just the k surviving values (much cheaper than softmaxing over the full vocab), draw from those, then map back to the original vocab id with <code class="inl">gather</code>.</p>
+
+  <h3>Step 3 — Multinomial draw</h3>
+  <p>Roll a biased die. <code class="inl">torch.multinomial(probs, 1)</code> returns an index sampled according to <code class="inl">probs</code>. The <code class="inl">generator</code> argument lets you pass a deterministic PRNG for reproducibility.</p>
+
+  <h3>What about top-p?</h3>
+  <p>Top-p (nucleus sampling) keeps the smallest set of tokens whose cumulative probability ≥ p. More adaptive than top-k (sometimes 5 tokens, sometimes 100 depending on entropy). nanochat ships only top-k for simplicity; top-p is a small extension if you want it.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Greedy (argmax)<span class="verdict meh">deterministic</span></div><div class="alt-desc">Always pick the top token. <strong>Pro:</strong> reproducible, no surprises. <strong>Con:</strong> repetitive, prone to loops in open-ended generation.</div></div>
+    <div class="alt"><div class="alt-name">Top-p / nucleus<span class="verdict win">popular</span></div><div class="alt-desc">Keep the smallest set whose cumulative probability ≥ p (e.g. 0.9). <strong>Pro:</strong> adapts to the entropy of the moment. <strong>Con:</strong> one more knob; for confident next tokens it can keep just one option, for ambiguous ones it keeps many.</div></div>
+    <div class="alt"><div class="alt-name">Beam search<span class="verdict meh">overkill</span></div><div class="alt-desc">Maintain k partial sequences in parallel, expand each, keep the top-k. <strong>Pro:</strong> great for translation, summarization. <strong>Con:</strong> slow, prone to bland generations in open-ended settings.</div></div>
+    <div class="alt"><div class="alt-name">Mirostat<span class="verdict meh">niche</span></div><div class="alt-desc">Adaptive sampling that targets a fixed perplexity ("surprise") level over time. Interesting, less common.</div></div>
+    <div class="alt"><div class="alt-name">Top-k + temperature<span class="verdict used">used</span></div><div class="alt-desc">nanochat's choice. Two clear knobs (temp, k) with intuitive effects; ~10 lines of code; well-suited to chat and instruction-following.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 15 — KV cache
+// =============================================================================
+CONCEPTS.push({
+  id: 'kvcache', num: '15', tag: 'KVCache · engine.py:82',
+  title: 'KV cache',
+  deck: 'At decode time, recomputing K and V for every past token at every step would be O(T²) per token. The cache stores them once and grows by one slot per generated token.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">Purpose</p>
+  <h2>Why does this exist?</h2>
+  <p>Imagine generating a 1000-token response. Without a cache:</p>
+  <ul>
+    <li>To generate token 1, run the full model on the prompt + 0 generated tokens.</li>
+    <li>To generate token 2, run the full model on the prompt + 1 generated tokens.</li>
+    <li>… To generate token 1000, run the full model on the prompt + 999 generated tokens.</li>
+  </ul>
+  <p>Total cost: <code class="inl">O(T²)</code> per layer, total <code class="inl">O(N · T²)</code> for the whole response. That's quadratic in the response length. For long responses it's painfully slow — most of the work is <em>recomputing the same K and V for past tokens</em>, over and over.</p>
+  <p>The KV cache fixes this. K and V for past tokens never change (causal attention!), so we compute each once, store them, and on subsequent steps we only compute Q, K, V for the new token. New K and V get appended to the cache. Total cost drops to <code class="inl">O(T)</code> per token — linear.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine taking minutes of a long meeting. Without a cache, every time someone speaks you re-write all the minutes from scratch. With a cache, you keep the running minutes and just append the new line. KV cache is the running-minutes approach for transformers.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">What if we didn't have it?</div>
+    <p>You'd be 10× to 100× slower on inference. Long-form generation would be unusable. Real-time chat impossible. The cache is so important that essentially every serving system (vLLM, TGI, llama.cpp, …) is fundamentally built around clever KV-cache management — paging it, sharing it across requests, quantizing it. nanochat ships a clean reference implementation in <code class="inl">engine.py</code>.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Implementation</p>
+  <h2>How does it actually work?</h2>
+
+  <h3>The data structure</h3>
+  <pre class="code"><code class="language-python">class KVCache:
+    def __init__(self, batch_size, n_layers, max_seq_len, n_kv_head, head_dim, dtype, device):
+        self.k_cache = torch.zeros(n_layers, batch_size, max_seq_len, n_kv_head, head_dim,
+                                   dtype=dtype, device=device)
+        self.v_cache = torch.zeros(n_layers, batch_size, max_seq_len, n_kv_head, head_dim,
+                                   dtype=dtype, device=device)
+        self.cache_seqlens = torch.zeros(batch_size, dtype=torch.int32, device=device)
+        self.prev_embedding = torch.zeros(batch_size, 1, n_embd, dtype=dtype, device=device)</code></pre>
+  <p>The cache is <strong>preallocated</strong> to <code class="inl">max_seq_len</code> at construction. No dynamic growth — we just fill it up. <code class="inl">cache_seqlens</code> tracks, per batch element, how many slots are currently used (so a batch of generations of different lengths can share the same cache).</p>
+  <p><code class="inl">prev_embedding</code> is the cross-step state for the smear stage (see <a href="#smear">stage 4</a>).</p>
+
+  <h3>Two phases: prefill and decode</h3>
+  <p><strong>Prefill</strong>: the user gives a prompt of T tokens. We run the full model on all T at once (compute-bound, GPU loves this), and the cache gets filled with the K and V for all T positions.</p>
+  <p><strong>Decode</strong>: we then generate one token at a time. Each step, run the model on a single new token. Compute its Q, K, V. Append K, V to the cache. Run attention with Q against the entire cache. Cost per step: <em>one</em> set of QKV projections + attention against (T + steps_so_far) cached K, V — much, much cheaper than re-running on the whole prefix.</p>
+
+  <h3>How attention uses the cache</h3>
+  <p>Flash Attention's <code class="inl">flash_attn_with_kvcache</code> takes Q (just the new token), the full cache tensors, and the new K, V (which it writes into the cache at <code class="inl">cache_seqlens</code> in-place). Then it does attention over <code class="inl">cache_seqlens + 1</code> positions and returns the result.</p>
+  <pre class="code"><code class="language-python">y = flash_attn_with_kvcache(
+    q, layer_kv.k_cache, layer_kv.v_cache,
+    k=k, v=v,
+    cache_seqlens=kv_cache.cache_seqlens,
+    causal=True,
+    window_size=(window_size_left, 0),
+)
+if self.layer_idx == self.config.n_layer - 1:
+    kv_cache.cache_seqlens += T   # only advance once per step, after the last layer</code></pre>
+
+  <h3>Memory footprint</h3>
+  <p>For nanochat-d20 at max seq 2048, with batch 1, in bf16:</p>
+  <div class="math-block" data-tex="\\text{K cache size} = n\\_layers \\cdot T \\cdot n\\_kv\\_head \\cdot D \\cdot 2\\,\\text{bytes}"></div>
+  <div class="math-block" data-tex="= 20 \\cdot 2048 \\cdot 5 \\cdot 128 \\cdot 2 = 52\\,\\text{MB (and the same for V)}"></div>
+  <p>Modest at this scale. At 70B parameters with 32k context the same arithmetic produces tens of GB — which is why production serving systems spend so much engineering effort on KV cache management.</p>
+
+  <h3>Asymmetric workload</h3>
+  <p>This is the key inference insight:</p>
+  <ul>
+    <li><strong>Prefill</strong> processes T tokens in parallel — compute-bound. GPUs sing.</li>
+    <li><strong>Decode</strong> processes 1 token but reads the entire cache for every layer — bandwidth-bound. GPUs struggle.</li>
+  </ul>
+  <p>This is why GQA matters (smaller cache → less bandwidth), why sliding window matters (smaller effective cache), and why quantized KV caches are an active research area.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Alternatives</p>
+  <h2>What else could you do?</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">No cache (re-encode every step)<span class="verdict lose">unusable</span></div><div class="alt-desc">Run the full model on the entire prefix at every step. <strong>Pro:</strong> simple to implement. <strong>Con:</strong> O(T²) per token; long generations crawl. Nobody serves this in production.</div></div>
+    <div class="alt"><div class="alt-name">Sliding-window cache<span class="verdict win">long context</span></div><div class="alt-desc">Drop the oldest cache entries past the window. <strong>Pro:</strong> bounded memory regardless of generated length. <strong>Con:</strong> loses access to very old tokens. Used by Mistral; nanochat could adopt the same with no architecture change since attention is already windowed.</div></div>
+    <div class="alt"><div class="alt-name">PagedAttention (vLLM)<span class="verdict win">production</span></div><div class="alt-desc">Allocate cache in fixed-size pages, share pages across requests with common prefixes. <strong>Pro:</strong> massive throughput wins for serving. <strong>Con:</strong> serving-system complexity; overkill for a reference engine.</div></div>
+    <div class="alt"><div class="alt-name">Quantized cache<span class="verdict win">memory savings</span></div><div class="alt-desc">Store K, V in int8 or int4 instead of bf16. <strong>Pro:</strong> 2-4× cache shrinkage. <strong>Con:</strong> small quality cost, kernel complexity. Big-context production setups use it.</div></div>
+    <div class="alt"><div class="alt-name">Dense bf16 cache<span class="verdict used">used</span></div><div class="alt-desc">Preallocated, never paged or quantized. nanochat's choice — the clean reference design. Production systems layer paging and quantization on top of this same idea.</div></div>
+  </div>
+</section>
+`});
+
+
+// =============================================================================
+// Rendering / routing
+// =============================================================================
+function el(tag, props={}, ...children) {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else e.setAttribute(k, v);
+  });
+  children.flat().forEach(c => {
+    if (c == null) return;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+
+function buildAll() {
+  const main = document.getElementById('content');
+  CONCEPTS.forEach((c, i) => {
+    const art = el('article', { id: c.id });
+    const head = el('div', { class: 'art-head' },
+      el('div', { class: 'art-eyebrow' },
+        el('span', { class: 'num' }, c.num),
+        el('span', { class: 'tag' }, c.tag)
+      ),
+      el('h1', { html: c.title }),
+      el('p', { class: 'deck' }, c.deck)
+    );
+    art.appendChild(head);
+    art.insertAdjacentHTML('beforeend', c.body);
+
+    // prev / next
+    const prev = i > 0 ? CONCEPTS[i - 1] : null;
+    const next = i < CONCEPTS.length - 1 ? CONCEPTS[i + 1] : null;
+    const pn = el('div', { class: 'pn' },
+      prev
+        ? el('a', { href: '#' + prev.id },
+            el('div', { class: 'dir' }, '← previous'),
+            el('div', { class: 'nxt-title' }, `${prev.num}. ${prev.title}`))
+        : el('a', { class: 'disabled' }, el('div', { class: 'dir' }, '·')),
+      next
+        ? el('a', { class: 'next', href: '#' + next.id },
+            el('div', { class: 'dir' }, 'next →'),
+            el('div', { class: 'nxt-title' }, `${next.num}. ${next.title}`))
+        : el('a', { class: 'disabled next' }, el('div', { class: 'dir' }, '·'))
+    );
+    art.appendChild(pn);
+
+    art.appendChild(el('footer', { class: 'foot' },
+      'concept ' + c.num + ' of ' + CONCEPTS.length + ' · ',
+      el('a', { href: 'inference_visualization.html#' + c.id }, '↗ see this stage on the overview')
+    ));
+
+    main.appendChild(art);
+  });
+
+  // Build rail
+  const rail = document.getElementById('railList');
+  CONCEPTS.forEach(c => {
+    const li = el('li', {},
+      el('a', { class: 'chap', href: '#' + c.id, 'data-id': c.id }, c.title)
+    );
+    rail.appendChild(li);
+  });
+}
+
+function show(id) {
+  if (!id || !document.getElementById(id)) id = CONCEPTS[0].id;
+  document.querySelectorAll('article').forEach(a => a.classList.toggle('active', a.id === id));
+  document.querySelectorAll('.rail a.chap').forEach(a => a.classList.toggle('active', a.getAttribute('data-id') === id));
+  // Update document title
+  const c = CONCEPTS.find(x => x.id === id);
+  if (c) document.title = c.num + '. ' + c.title + ' · concepts';
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // Render math and code in the now-active article
+  const active = document.getElementById(id);
+  active.querySelectorAll('div.math-block[data-tex]').forEach(d => {
+    if (d.dataset.rendered) return;
+    if (window.katex) {
+      katex.render(d.dataset.tex, d, { displayMode: true, throwOnError: false });
+      d.dataset.rendered = '1';
+    }
+  });
+  active.querySelectorAll('pre.code code').forEach(b => {
+    if (b.dataset.hl) return;
+    if (window.hljs) { hljs.highlightElement(b); b.dataset.hl = '1'; }
+  });
+}
+
+function init() {
+  buildAll();
+  show(location.hash.slice(1));
+  window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>

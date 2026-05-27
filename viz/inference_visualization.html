@@ -102,8 +102,11 @@ section.stage:last-of-type { border-bottom: none; }
 .stage-num { font-family: var(--mono); font-size: 12px; color: var(--gold); letter-spacing: 0.1em; }
 .stage-tag { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 2px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; }
 .stage h2 { font-family: var(--serif); font-weight: 500; font-size: 40px; line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.015em; }
-.stage .intro { font-size: 17px; color: var(--muted); max-width: 720px; margin-bottom: 32px; }
+.stage .intro { font-size: 17px; color: var(--muted); max-width: 720px; margin-bottom: 20px; }
 .stage .intro strong { color: var(--text); font-weight: 500; }
+.concept-link { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); text-decoration: none; padding: 6px 12px; border: 1px solid var(--gold-soft); border-radius: 100px; margin-bottom: 32px; transition: all 0.15s; }
+.concept-link:hover { background: var(--gold); color: #000; transform: translateX(2px); }
+.concept-link .arr { font-family: var(--sans); font-size: 14px; }
 
 /* Cards */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin: 24px 0; }
@@ -1738,14 +1741,22 @@ function mountStages() {
 
   STAGES.forEach(s => {
     const section = el('section', { class: 'stage', id: s.id });
-    const head = el('div', {},
+    const headerChildren = [
       el('div', { class: 'stage-header' },
         el('span', { class: 'stage-num' }, s.num),
         el('span', { class: 'stage-tag' }, s.tag)
       ),
       el('h2', {}, s.title),
       el('p', { class: 'intro' }, s.intro)
-    );
+    ];
+    // Add "Learn the concept →" link, except for the 00 hyperparameters card
+    if (s.num !== '00') {
+      headerChildren.push(el('a', {
+        class: 'concept-link',
+        href: 'concepts.html#' + s.id,
+      }, 'Learn the concept in depth ', el('span', { class: 'arr' }, '→')));
+    }
+    const head = el('div', {}, ...headerChildren);
     section.appendChild(head);
     s.mount(section);
     root.appendChild(section);

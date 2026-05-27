@@ -65,6 +65,7 @@ hyperparameter that the viz exposes. Cosmetic refactors don't need viz updates.
 
 | File | What it explains | Primary sources |
 |---|---|---|
-| `inference_visualization.html` | End-to-end forward pass of nanochat's GPT, from token IDs to next-token sampling | `nanochat/gpt.py`, `nanochat/engine.py` |
+| `inference_visualization.html` | End-to-end forward pass of nanochat's GPT, from token IDs to next-token sampling. Single-page interactive walkthrough with 15 stages, D3 diagrams, KaTeX math, and toy demos. | `nanochat/gpt.py`, `nanochat/engine.py` |
+| `concepts.html` | Companion explainer pages — one per stage of the inference pipeline. Each page has three sections: **Purpose** (analogy + counterfactual, no ML background assumed), **Implementation** (high → low level, 100/200-level math), and **Alternatives** (with verdicts). Hash-routed (`concepts.html#tokenize`, `concepts.html#qkv`, etc). Linked from each stage in `inference_visualization.html`. | `nanochat/gpt.py`, `nanochat/engine.py` |
 
 Add new viz files here as they land.
