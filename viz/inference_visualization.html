@@ -87,13 +87,41 @@ body {
 .hero-meta span { display: flex; align-items: center; gap: 8px; }
 .hero-meta strong { color: var(--text); font-family: var(--mono); font-weight: 500; }
 
-/* Pipeline overview */
-.pipeline-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 48px 0 24px; }
-.pipe-step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; cursor: pointer; transition: all 0.15s; text-decoration: none; color: inherit; }
-.pipe-step:hover { border-color: var(--gold); background: var(--surface-2); transform: translateY(-1px); }
-.pipe-step .num { font-family: var(--mono); font-size: 11px; color: var(--gold); }
-.pipe-step .name { font-size: 13px; font-weight: 500; margin-top: 4px; color: var(--text); }
-.pipe-step .desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+/* Pipeline overview — flow diagram */
+.pipeline-overview { margin: 56px 0 24px; position: relative; }
+.pipeline-overview .pf-wrap { background: linear-gradient(180deg, var(--bg-2) 0%, var(--bg) 100%); border: 1px solid var(--border); border-radius: 16px; padding: 32px 28px 20px; position: relative; overflow: hidden; }
+.pipeline-overview svg { display: block; width: 100%; height: auto; overflow: visible; }
+.pipeline-overview .pf-phase-band { transition: opacity 0.2s; }
+.pipeline-overview .pf-phase-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; fill: var(--muted); }
+.pipeline-overview .pf-phase-sub { font-family: var(--mono); font-size: 9.5px; fill: var(--dim); letter-spacing: 0.08em; }
+.pipeline-overview .pf-station { cursor: pointer; }
+.pipeline-overview .pf-station circle.bg { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; transition: all 0.18s; }
+.pipeline-overview .pf-station:hover circle.bg { stroke: var(--gold); fill: var(--surface); }
+.pipeline-overview .pf-station text.num { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); font-weight: 500; text-anchor: middle; pointer-events: none; transition: fill 0.18s; }
+.pipeline-overview .pf-station:hover text.num { fill: var(--gold); }
+.pipeline-overview .pf-station text.lbl { font-family: var(--sans); font-size: 10.5px; fill: var(--text); text-anchor: middle; font-weight: 500; pointer-events: none; }
+.pipeline-overview .pf-station.active circle.bg { fill: var(--gold); stroke: var(--gold); }
+.pipeline-overview .pf-station.active text.num { fill: #000; font-weight: 600; }
+.pipeline-overview .pf-flow-line { fill: none; stroke: var(--border-2); stroke-width: 2; }
+.pipeline-overview .pf-flow-line.alive { stroke: url(#pfFlowGrad); stroke-width: 2.5; }
+.pipeline-overview .pf-loop-arc { fill: none; stroke: var(--attn); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: 0.7; }
+.pipeline-overview .pf-loop-label { font-family: var(--serif); font-style: italic; font-size: 16px; fill: var(--attn); font-weight: 500; text-anchor: middle; }
+.pipeline-overview .pf-kv-rail { fill: none; stroke: var(--k); stroke-width: 1; stroke-dasharray: 2 4; opacity: 0.5; }
+.pipeline-overview .pf-kv-tap { stroke: var(--k); stroke-width: 1; opacity: 0.4; stroke-dasharray: 2 3; }
+.pipeline-overview .pf-kv-label { font-family: var(--mono); font-size: 10px; fill: var(--k); letter-spacing: 0.05em; }
+.pipeline-overview .pf-particle { fill: var(--gold); }
+.pipeline-overview .pf-endpoint-label { font-family: var(--mono); font-size: 10px; fill: var(--muted); letter-spacing: 0.05em; }
+.pipeline-overview .pf-endpoint-arrow { fill: var(--muted); }
+.pipeline-overview .pf-tooltip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--gold); border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 12px; color: var(--text); white-space: nowrap; opacity: 0; transition: opacity 0.15s; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 10; }
+.pipeline-overview .pf-tooltip.show { opacity: 1; }
+.pipeline-overview .pf-tooltip .desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.pipeline-overview .pf-legend { display: flex; justify-content: center; gap: 24px; margin-top: 14px; font-family: var(--mono); font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.pipeline-overview .pf-legend .item { display: flex; align-items: center; gap: 6px; }
+.pipeline-overview .pf-legend .sw { width: 10px; height: 10px; border-radius: 2px; }
+.pipeline-overview .pf-legend .sw.line { width: 16px; height: 2px; border-radius: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-overview .pf-particle { display: none; }
+}
 
 /* Section */
 section.stage { padding: 80px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 24px; }
@@ -301,13 +329,207 @@ const PIPELINE = [
 function mountOverview() {
   const root = document.getElementById('pipelineOverview');
   root.innerHTML = '';
-  PIPELINE.forEach(p => {
-    const a = document.createElement('a');
-    a.href = '#' + p.anchor;
-    a.className = 'pipe-step';
-    a.innerHTML = `<div class="num">${p.num}</div><div class="name">${p.name}</div><div class="desc">${p.desc}</div>`;
-    root.appendChild(a);
+
+  // Tooltip
+  const tip = el('div', { class: 'pf-tooltip' });
+
+  const wrap = el('div', { class: 'pf-wrap' });
+  wrap.appendChild(tip);
+
+  // Three phase groupings (note: stage 15 KV cache is rendered as a separate rail, not on the main flow)
+  const ENC = PIPELINE.slice(0, 4);              // 01-04
+  const BLOCK = PIPELINE.slice(4, 11);           // 05-11
+  const DEC = PIPELINE.slice(11, 14);            // 12-14
+  const KV = PIPELINE[14];                       // 15
+  const mainFlow = [...ENC, ...BLOCK, ...DEC];   // 14 stations along main line
+  const N = mainFlow.length;
+
+  // SVG layout
+  const W = 1080, H = 380;
+  const PAD_L = 36, PAD_R = 36;
+  const TRACK_Y = 196;
+  const KV_Y = 312;
+
+  // Phase x-ranges (in svg units)
+  const xEnc0 = PAD_L, xEncW = 220;
+  const xBlk0 = xEnc0 + xEncW + 32, xBlkW = 520;
+  const xDec0 = xBlk0 + xBlkW + 32, xDecW = W - PAD_R - xDec0;
+
+  function stageX(p) {
+    if (p.num <= '04') {
+      const i = ENC.findIndex(e => e.anchor === p.anchor);
+      return xEnc0 + 32 + (xEncW - 64) * (i / Math.max(ENC.length - 1, 1));
+    } else if (p.num <= '11') {
+      const i = BLOCK.findIndex(e => e.anchor === p.anchor);
+      return xBlk0 + 40 + (xBlkW - 80) * (i / Math.max(BLOCK.length - 1, 1));
+    } else {
+      const i = DEC.findIndex(e => e.anchor === p.anchor);
+      return xDec0 + 28 + (xDecW - 56) * (i / Math.max(DEC.length - 1, 1));
+    }
+  }
+
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${W} ${H}`);
+
+  // Gradient defs for the flow line
+  const defs = svg.append('defs');
+  const grad = defs.append('linearGradient').attr('id', 'pfFlowGrad').attr('x1', '0%').attr('x2', '100%');
+  grad.append('stop').attr('offset', '0%').attr('stop-color', '#5aa9ff');
+  grad.append('stop').attr('offset', '35%').attr('stop-color', '#a855f7');
+  grad.append('stop').attr('offset', '65%').attr('stop-color', '#a855f7');
+  grad.append('stop').attr('offset', '100%').attr('stop-color', '#f06aa3');
+
+  // Phase bands (subtle background tint)
+  const phases = [
+    { x: xEnc0, w: xEncW, color: '#5aa9ff', label: 'Encode input', sub: 'once per request' },
+    { x: xBlk0, w: xBlkW, color: '#a855f7', label: 'Transform', sub: `${CFG.n_layer} blocks · iterated` },
+    { x: xDec0, w: xDecW, color: '#f06aa3', label: 'Decode output', sub: 'once per token' },
+  ];
+  const BAND_TOP = 76;
+  phases.forEach(ph => {
+    svg.append('rect').attr('class', 'pf-phase-band')
+      .attr('x', ph.x).attr('y', BAND_TOP).attr('width', ph.w).attr('height', 184)
+      .attr('rx', 10).attr('fill', ph.color).attr('opacity', 0.04);
+    svg.append('rect')
+      .attr('x', ph.x).attr('y', BAND_TOP).attr('width', ph.w).attr('height', 2)
+      .attr('fill', ph.color).attr('opacity', 0.35);
+    svg.append('text').attr('class', 'pf-phase-label')
+      .attr('x', ph.x + 12).attr('y', 36).attr('fill', ph.color).text(ph.label);
+    svg.append('text').attr('class', 'pf-phase-sub')
+      .attr('x', ph.x + 12).attr('y', 52).text(ph.sub);
   });
+
+  // Main flow line: a single smooth path through all 14 stations
+  const flowPts = mainFlow.map(p => ({ x: stageX(p), y: TRACK_Y, p }));
+  const flowPath = d3.line().x(d => d.x).y(d => d.y).curve(d3.curveCatmullRom.alpha(0.5));
+  svg.append('path').attr('class', 'pf-flow-line alive').attr('d', flowPath(flowPts));
+
+  // Start/end caps with subtle labels (single inline label, not stacked)
+  const startX = flowPts[0].x, endX = flowPts[flowPts.length - 1].x;
+  svg.append('text').attr('class', 'pf-endpoint-label')
+    .attr('x', startX - 28).attr('y', TRACK_Y + 4).attr('text-anchor', 'end').text('text');
+  svg.append('text').attr('class', 'pf-endpoint-label')
+    .attr('x', startX - 18).attr('y', TRACK_Y + 4).attr('text-anchor', 'end').attr('fill', '#f0b840').text('→');
+  svg.append('text').attr('class', 'pf-endpoint-label')
+    .attr('x', endX + 28).attr('y', TRACK_Y + 4).text('next token');
+  svg.append('text').attr('class', 'pf-endpoint-label')
+    .attr('x', endX + 18).attr('y', TRACK_Y + 4).attr('fill', '#f0b840').text('→');
+
+  // Loop arc over the BLOCK stages (5..11)
+  const loopL = stageX(BLOCK[0]) - 8;
+  const loopR = stageX(BLOCK[BLOCK.length - 1]) + 8;
+  const loopMidX = (loopL + loopR) / 2;
+  const loopTop = 102;
+  // S-curve up, across, and down with arrow back into block start
+  const loopArc = `M ${loopR} ${TRACK_Y - 18} C ${loopR + 8} ${loopTop + 24}, ${loopMidX + 80} ${loopTop}, ${loopMidX} ${loopTop} S ${loopL - 8} ${loopTop + 24}, ${loopL} ${TRACK_Y - 18}`;
+  svg.append('path').attr('class', 'pf-loop-arc').attr('d', loopArc).attr('marker-end', 'url(#pfArrow)');
+  // Arrow marker
+  defs.append('marker').attr('id', 'pfArrow').attr('viewBox', '0 0 10 10').attr('refX', 6).attr('refY', 5)
+    .attr('markerWidth', 8).attr('markerHeight', 8).attr('orient', 'auto-start-reverse')
+    .append('path').attr('d', 'M 0 0 L 8 5 L 0 10 z').attr('fill', 'var(--attn)').attr('opacity', 0.85);
+  // Loop label
+  svg.append('text').attr('class', 'pf-loop-label')
+    .attr('x', loopMidX).attr('y', loopTop - 8).text(`loop ×${CFG.n_layer}`);
+
+  // KV cache rail — a separate dashed line below, with taps into the stages it touches
+  // KV cache is used during inference for: 04 smear (prev_embedding), 06 qkv (k/v writes), 10 attention (reads)
+  const KV_TAPS = ['smear', 'qkv', 'attn'];
+  // Span runs from below 04 through to a little past 10
+  const kvStart = stageX(mainFlow.find(p => p.anchor === 'smear')) - 24;
+  const kvEnd = stageX(mainFlow.find(p => p.anchor === 'attn')) + 36;
+  svg.append('line').attr('class', 'pf-kv-rail')
+    .attr('x1', kvStart).attr('y1', KV_Y).attr('x2', kvEnd).attr('y2', KV_Y);
+  // KV cache label / "station" on the right
+  svg.append('rect')
+    .attr('x', kvEnd + 6).attr('y', KV_Y - 14).attr('width', 110).attr('height', 28).attr('rx', 14)
+    .attr('fill', 'var(--surface-2)').attr('stroke', 'var(--k)').attr('opacity', 0.9)
+    .style('cursor', 'pointer')
+    .on('click', () => { location.hash = KV.anchor; })
+    .on('mouseenter', function(ev) { showTip(ev, KV); })
+    .on('mousemove', function(ev) { moveTip(ev); })
+    .on('mouseleave', () => hideTip());
+  svg.append('text').attr('class', 'pf-kv-label').attr('x', kvEnd + 16).attr('y', KV_Y + 4).text('15  KV cache');
+  // Taps
+  KV_TAPS.forEach(anc => {
+    const p = mainFlow.find(s => s.anchor === anc);
+    const x = stageX(p);
+    svg.append('line').attr('class', 'pf-kv-tap')
+      .attr('x1', x).attr('y1', TRACK_Y + 18).attr('x2', x).attr('y2', KV_Y);
+  });
+  svg.append('text').attr('class', 'pf-kv-label')
+    .attr('x', kvStart - 6).attr('y', KV_Y + 4).attr('text-anchor', 'end').attr('opacity', 0.7).text('at inference');
+
+  // Stations: a group per station for hover + click
+  const stationG = svg.append('g').attr('class', 'pf-stations');
+  mainFlow.forEach((p, i) => {
+    const x = stageX(p);
+    const y = TRACK_Y;
+    const g = stationG.append('g').attr('class', 'pf-station')
+      .attr('data-anchor', p.anchor)
+      .on('click', () => { location.hash = p.anchor; })
+      .on('mouseenter', function(ev) { showTip(ev, p); })
+      .on('mousemove', function(ev) { moveTip(ev); })
+      .on('mouseleave', () => hideTip());
+    g.append('circle').attr('class', 'bg').attr('cx', x).attr('cy', y).attr('r', 14);
+    g.append('text').attr('class', 'num').attr('x', x).attr('y', y + 4).text(p.num);
+    // Label below
+    g.append('text').attr('class', 'lbl').attr('x', x).attr('y', y + 36).text(p.name);
+  });
+
+  // Animated particle group
+  const particleG = svg.append('g').attr('class', 'pf-particles');
+  const pathNode = svg.select('path.pf-flow-line').node();
+  const totalLen = pathNode.getTotalLength();
+  const NPARTICLES = 5;
+  const particles = [];
+  for (let i = 0; i < NPARTICLES; i++) {
+    particles.push(particleG.append('circle').attr('class', 'pf-particle').attr('r', 2.5).attr('opacity', 0));
+  }
+
+  // Animation loop
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    let t0 = performance.now();
+    function tick(now) {
+      const t = (now - t0) / 1000;
+      for (let i = 0; i < NPARTICLES; i++) {
+        const phase = (t * 0.085 + i / NPARTICLES) % 1;
+        const len = phase * totalLen;
+        const pt = pathNode.getPointAtLength(len);
+        // Fade at endpoints
+        let op = 0.85;
+        if (phase < 0.04) op *= phase / 0.04;
+        else if (phase > 0.96) op *= (1 - phase) / 0.04;
+        particles[i].attr('cx', pt.x).attr('cy', pt.y).attr('opacity', op);
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    let raf = requestAnimationFrame(tick);
+  }
+
+  wrap.appendChild(svg.node());
+  root.appendChild(wrap);
+
+  // Legend
+  const legend = el('div', { class: 'pf-legend' },
+    el('span', { class: 'item' }, el('span', { class: 'sw', style: 'background:#5aa9ff' }), 'encode'),
+    el('span', { class: 'item' }, el('span', { class: 'sw', style: 'background:#a855f7' }), 'transform (loop ×' + CFG.n_layer + ')'),
+    el('span', { class: 'item' }, el('span', { class: 'sw', style: 'background:#f06aa3' }), 'decode'),
+    el('span', { class: 'item' }, el('span', { class: 'sw line', style: 'background:#5ed492' }), 'KV cache (at inference)'),
+    el('span', { class: 'item' }, 'hover a station · click to jump')
+  );
+  root.appendChild(legend);
+
+  // Tooltip helpers
+  function showTip(ev, p) {
+    tip.innerHTML = `<div><span style="color:var(--gold)">${p.num}</span> · ${p.name}</div><div class="desc">${p.desc}</div>`;
+    tip.classList.add('show');
+    moveTip(ev);
+  }
+  function moveTip(ev) {
+    const rect = root.getBoundingClientRect();
+    tip.style.left = (ev.clientX - rect.left + 12) + 'px';
+    tip.style.top = (ev.clientY - rect.top + 12) + 'px';
+  }
+  function hideTip() { tip.classList.remove('show'); }
 }
 
 // === Helpers ===
