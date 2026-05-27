@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>math · nanochat inference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/python.min.js"></script>
+<style>
+:root {
+  --bg: #0a0b10; --bg-2: #0f1117; --surface: #15171f; --surface-2: #1b1e28;
+  --border: #252836; --border-2: #303345;
+  --text: #e8e9f1; --muted: #8a8d9f; --dim: #5d6072;
+  --gold: #f0b840; --gold-soft: #c89234;
+  --q: #5aa9ff; --k: #5ed492; --v: #f06aa3;
+  --attn: #a855f7; --gate: #fb923c;
+  --ok: #4ade80; --warn: #facc15; --bad: #f87171;
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Inter", -apple-system, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--sans); background: var(--bg); color: var(--text);
+  line-height: 1.65; font-size: 16.5px;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+::selection { background: var(--gold); color: #000; }
+a { color: var(--gold); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Layout: two-column with left rail */
+.shell { display: grid; grid-template-columns: 220px 1fr; max-width: 1200px; margin: 0 auto; gap: 56px; padding: 32px; }
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; gap: 0; padding: 16px; } .rail { display: none; } }
+.rail { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; padding-right: 8px; }
+.rail::-webkit-scrollbar { width: 4px; }
+.rail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.rail-back { font-family: var(--mono); font-size: 12px; color: var(--muted); display: inline-block; margin-bottom: 24px; }
+.rail-back:hover { color: var(--gold); }
+.rail-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--dim); margin-bottom: 10px; }
+.rail ol { list-style: none; padding: 0; margin: 0; counter-reset: chapter; }
+.rail li { counter-increment: chapter; }
+.rail a.chap { display: block; padding: 8px 0 8px 32px; font-size: 13px; color: var(--muted); border-left: 1px solid var(--border); position: relative; transition: all 0.12s; }
+.rail a.chap::before { content: counter(chapter, decimal-leading-zero); position: absolute; left: 10px; top: 8px; font-size: 10px; color: var(--dim); font-family: var(--mono); }
+.rail a.chap:hover { color: var(--text); text-decoration: none; }
+.rail a.chap.active { color: var(--gold); border-left-color: var(--gold); }
+.rail a.chap.active::before { color: var(--gold); }
+
+/* Main column */
+main { min-width: 0; }
+
+/* Article header */
+.art-head { padding: 24px 0 48px; }
+.art-eyebrow { display: inline-flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--gold); margin-bottom: 24px; }
+.art-eyebrow .num { padding: 3px 10px; border: 1px solid var(--gold); border-radius: 100px; }
+.art-eyebrow .tag { color: var(--muted); border: none; padding: 0; }
+.art-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(36px, 5vw, 56px); line-height: 1.08; margin: 0 0 18px; letter-spacing: -0.018em; }
+.art-head h1 em { font-style: italic; color: var(--gold); }
+.art-head .deck { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0; line-height: 1.55; }
+
+/* Section blocks */
+section.block { padding: 36px 0; border-top: 1px solid var(--border); }
+section.block:first-of-type { border-top: 1px solid var(--gold); border-top-width: 2px; }
+.block-eyebrow { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--gold); margin: 0 0 10px; font-weight: 600; }
+.block h2 { font-family: var(--serif); font-weight: 500; font-size: 32px; line-height: 1.15; margin: 0 0 24px; letter-spacing: -0.012em; }
+.block h3 { font-family: var(--serif); font-weight: 500; font-size: 20px; margin: 28px 0 12px; color: var(--text); }
+.block p { margin: 0 0 16px; }
+.block p strong { color: var(--text); font-weight: 600; }
+.block ul, .block ol { padding-left: 22px; margin: 0 0 16px; }
+.block li { margin-bottom: 8px; }
+
+/* Analogy callout */
+.analogy { background: linear-gradient(180deg, rgba(94,212,146,0.06), rgba(94,212,146,0.02)); border: 1px solid rgba(94,212,146,0.25); border-left: 3px solid var(--k); border-radius: 6px; padding: 18px 22px; margin: 20px 0; }
+.analogy .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--k); margin-bottom: 6px; font-weight: 600; }
+.analogy p:last-child { margin-bottom: 0; }
+
+/* What-if (counterfactual) callout */
+.whatif { background: linear-gradient(180deg, rgba(248,113,113,0.05), rgba(248,113,113,0.015)); border: 1px solid rgba(248,113,113,0.22); border-left: 3px solid var(--bad); border-radius: 6px; padding: 18px 22px; margin: 20px 0; }
+.whatif .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--bad); margin-bottom: 6px; font-weight: 600; }
+.whatif p:last-child { margin-bottom: 0; }
+
+/* Math */
+.math-block { padding: 14px 18px; background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 18px 0; overflow-x: auto; }
+.katex { font-size: 1.05em !important; }
+.math-fig { background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 18px 0; overflow-x: auto; }
+.math-fig .math-block { background: transparent; border-left: none; border-radius: 0; margin: 0; padding-bottom: 6px; }
+.math-says { font-family: var(--sans); font-style: italic; font-size: 14px; color: var(--muted); line-height: 1.6; padding: 0 18px 14px; }
+.math-says strong { color: var(--text); font-style: normal; font-weight: 500; }
+.math-says em { color: var(--text); font-style: italic; }
+.math-says::before { content: "reads as"; font-style: normal; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--gold-soft); margin-right: 10px; padding: 1px 6px; border: 1px solid var(--gold-soft); border-radius: 3px; vertical-align: 1px; }
+
+/* Code */
+pre.code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; overflow-x: auto; margin: 16px 0; font-size: 13.5px; line-height: 1.6; }
+pre.code code { font-family: var(--mono); }
+.code-cap { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: -6px; margin-bottom: 18px; padding-left: 4px; }
+
+/* Alternatives table */
+.alts { display: grid; gap: 12px; margin: 16px 0 24px; }
+.alt { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: baseline; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+@media (max-width: 600px) { .alt { grid-template-columns: 1fr; gap: 4px; } }
+.alt-name { font-family: var(--mono); font-size: 13.5px; color: var(--gold); font-weight: 500; }
+.alt-name .verdict { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); margin-top: 4px; font-weight: 400; }
+.alt-name .verdict.win { color: var(--ok); }
+.alt-name .verdict.meh { color: var(--warn); }
+.alt-name .verdict.lose { color: var(--bad); }
+.alt-name .verdict.used { color: var(--gold); }
+.alt-desc { color: var(--muted); font-size: 14px; line-height: 1.55; }
+.alt-desc strong { color: var(--text); }
+
+/* Stage navigator (prev/next) */
+.pn { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 56px 0 40px; padding-top: 32px; border-top: 1px solid var(--border); }
+.pn a { display: block; padding: 18px 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); transition: all 0.12s; text-decoration: none; }
+.pn a:hover { border-color: var(--gold); background: var(--surface-2); transform: translateY(-1px); text-decoration: none; }
+.pn a.disabled { opacity: 0.3; pointer-events: none; }
+.pn .dir { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 4px; }
+.pn .nxt-title { font-family: var(--serif); font-size: 17px; color: var(--text); }
+.pn a.next { text-align: right; }
+
+/* Tag pills */
+.tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-right: 6px; }
+.tag-q { background: rgba(90,169,255,0.15); color: var(--q); border: 1px solid rgba(90,169,255,0.3); }
+.tag-k { background: rgba(94,212,146,0.15); color: var(--k); border: 1px solid rgba(94,212,146,0.3); }
+.tag-v { background: rgba(240,106,163,0.15); color: var(--v); border: 1px solid rgba(240,106,163,0.3); }
+
+/* Inline code */
+code.inl { font-family: var(--mono); font-size: 0.92em; color: var(--gold); background: rgba(240,184,64,0.08); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(240,184,64,0.15); }
+
+article { display: none; }
+article.active { display: block; animation: fadeIn 0.25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+footer.foot { color: var(--muted); font-size: 12px; text-align: center; padding: 40px 0; border-top: 1px solid var(--border); margin-top: 60px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="rail">
+  <a class="rail-back" href="inference_visualization.html">← back to overview</a>
+  <div class="rail-title">Math foundations</div>
+  <ol id="railList"></ol>
+  <div style="margin-top:24px;padding-top:18px;border-top:1px solid var(--border);">
+    <div class="rail-title">Also see</div>
+    <a class="rail-back" href="concepts.html" style="margin-bottom:0">Pipeline stages →</a>
+  </div>
+</aside>
+
+<main id="content"></main>
+
+</div>
+
+<script>
+const CONCEPTS = [];
+
+
+// =============================================================================
+// 01 — Vectors, matrices, tensors
+// =============================================================================
+CONCEPTS.push({
+  id: 'tensors', num: '01', tag: 'data containers',
+  title: 'Vectors, matrices, tensors',
+  deck: 'The model is, at the end of the day, a giant pile of numbers in nested arrays. Everything else is operations on those arrays. Get the shape vocabulary right and the rest follows.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>Containers for numbers, with shape</h2>
+  <p>Most ML code lives in a single data structure: an <strong>n-dimensional array of numbers</strong>. PyTorch calls it a <code class="inl">Tensor</code>; NumPy calls it an <code class="inl">ndarray</code>. Same thing. The number of dimensions is called the <strong>rank</strong>; the size along each dimension is the <strong>shape</strong>.</p>
+  <p>The vocabulary you'll see throughout this tutorial:</p>
+  <ul>
+    <li><strong>Scalar</strong> (rank 0) — a single number. Shape: <code class="inl">()</code>. Example: a learned <code class="inl">backout_lambda</code>.</li>
+    <li><strong>Vector</strong> (rank 1) — an ordered list of numbers. Shape: <code class="inl">(d,)</code>. Example: one token's embedding, <code class="inl">(1280,)</code>.</li>
+    <li><strong>Matrix</strong> (rank 2) — a 2D grid. Shape: <code class="inl">(r, c)</code>. Example: the embedding table <code class="inl">wte</code>, shape <code class="inl">(32768, 1280)</code>.</li>
+    <li><strong>Tensor</strong> (rank ≥ 3) — generic term for any n-D array. Example: <code class="inl">Q</code> in attention, shape <code class="inl">(B, T, H, D)</code>.</li>
+  </ul>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>A <strong>vector</strong> is a row of cells in a spreadsheet. A <strong>matrix</strong> is the whole spreadsheet. A <strong>3-D tensor</strong> is a stack of spreadsheets in a workbook. A <strong>4-D tensor</strong> is a shelf of workbooks. Beyond 4-D, you've stopped picturing it and you trust the shape.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">Is a tensor just a multi-dim vector?</div>
+    <p>In ML practice, yes — that's exactly what the word means. (Mathematicians and physicists use "tensor" more strictly: a multilinear function that transforms in a specific way under coordinate changes. NumPy doesn't care about that — it's just a box of numbers with named axes.)</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>Shape notation, and "lives in" notation</h2>
+  <p>You'll see two equivalent ways to specify a tensor's shape:</p>
+
+  <div class="math-block" data-tex="\\text{shape}(Q) = (B, T, H, D)" data-english="Q has four axes; their sizes are <em>B</em>, <em>T</em>, <em>H</em>, <em>D</em>. <strong>Read left to right: batch, sequence-length, heads, head-dimension.</strong>"></div>
+
+  <div class="math-block" data-tex="Q \\in \\mathbb{R}^{B \\times T \\times H \\times D}" data-english="Q <strong>lives in</strong> the space of real-valued tensors of shape <em>B × T × H × D</em>. The blackboard-bold ℝ means 'real numbers'; the superscript is the shape, written with × between dimensions."></div>
+
+  <p>Both say the same thing. Code prefers the first; math papers prefer the second.</p>
+
+  <h3>Indexing</h3>
+  <p>To pull out a single element you supply one index per axis: <code class="inl">Q[b, t, h, d]</code>. To pull out a slice, use a colon for "all of this axis": <code class="inl">Q[0, :, :, :]</code> gives you the first batch's full attention input, a 3-D tensor of shape <code class="inl">(T, H, D)</code>.</p>
+
+  <h3>Memory layout</h3>
+  <p>Under the hood, a tensor is a flat 1-D block of memory plus a description of how to walk it. For a contiguous tensor, the rightmost axis is the fastest-changing one ("row-major"). The choice of axis order can matter for performance — moving the head axis to the right (as nanochat does for FA3) means each head's slice is contiguous and cache-friendly.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>Tensors all the way down</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Embeddings (rank 2)<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#embed">wte</a> ∈ ℝ^(V×d). One row per token in the vocabulary; one column per embedding channel.</div></div>
+    <div class="alt"><div class="alt-name">Activations (rank 3)<span class="verdict used">used</span></div><div class="alt-desc">The residual stream <em>x</em> ∈ ℝ^(B×T×d) flowing through every block. The whole conversation is a stack of these.</div></div>
+    <div class="alt"><div class="alt-name">Q, K, V (rank 4)<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#qkv">Query, key, value</a> tensors of shape (B, T, H, D). The head axis lets each of the 10 heads run its own independent attention.</div></div>
+    <div class="alt"><div class="alt-name">KV cache (rank 5)<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#kvcache">k_cache</a> of shape (n_layers, B, max_seq, n_kv_head, D). The whole cache for the whole model in one preallocated block.</div></div>
+    <div class="alt"><div class="alt-name">Scalars (rank 0)<span class="verdict used">used</span></div><div class="alt-desc">Learned per-layer <code class="inl">resid_lambdas</code>, <code class="inl">x0_lambdas</code>, <code class="inl">backout_lambda</code>. Even single numbers are tensors in PyTorch.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 02 — Matrix multiplication
+// =============================================================================
+CONCEPTS.push({
+  id: 'matmul', num: '02', tag: 'the workhorse',
+  title: 'Matrix multiplication',
+  deck: 'Every learnable layer in the transformer is, ultimately, a matrix multiplication. If you understand one operation deeply, make it this one.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>Many dot products at once</h2>
+  <p>A matrix multiplication takes a <strong>(m × k) matrix</strong> on the left and a <strong>(k × n) matrix</strong> on the right and produces an <strong>(m × n) matrix</strong>. The inner dimension <em>k</em> must match.</p>
+  <p>Every cell of the output is a <strong>dot product</strong> (next concept!) between one row of the left matrix and one column of the right matrix. So matrix multiplication is just <em>m × n</em> dot products done in parallel.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Picture a bank of <em>n</em> mixers, each with <em>k</em> sliders. Each mixer reads the same <em>k</em>-channel input and combines those channels into one output value. <strong>Matrix multiplication runs <em>m</em> different inputs through the same bank of mixers at once</strong>, producing a row of outputs per input.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">Why everything is matmul</div>
+    <p>The reason every modern neural network is dominated by matmuls isn't theoretical — it's <strong>hardware</strong>. GPUs and TPUs have dedicated silicon (Tensor Cores) that does matmul at peak throughput. Reframing your operation as a matmul is the difference between "fast" and "100× faster".</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>The definition, and the shape rule</h2>
+  <div class="math-block" data-tex="C = A B, \\quad C_{ij} = \\sum_{p=1}^{k} A_{ip} B_{pj}" data-english="The (<em>i</em>, <em>j</em>) entry of <em>C</em> is the <strong>sum, over the shared inner index <em>p</em>, of A's <em>i</em>-th row times B's <em>j</em>-th column</strong>. One dot product per cell of the output."></div>
+
+  <div class="math-block" data-tex="(m \\times k) \\cdot (k \\times n) \\to (m \\times n)" data-english="The <strong>inner dimensions must match</strong>; they disappear in the output. The outer dimensions (<em>m</em> and <em>n</em>) stick around as the rows and columns of the result."></div>
+
+  <h3>Batched matmul</h3>
+  <p>In practice, every dimension to the left of the last two is treated as a batch. <code class="inl">A</code> of shape <code class="inl">(B, T, m, k)</code> times <code class="inl">B</code> of shape <code class="inl">(B, T, k, n)</code> gives a result of shape <code class="inl">(B, T, m, n)</code> — same matmul, done independently for every (b, t) pair.</p>
+
+  <h3>Properties worth knowing</h3>
+  <ul>
+    <li><strong>Not commutative.</strong> <code class="inl">A B ≠ B A</code> in general. Order matters.</li>
+    <li><strong>Associative.</strong> <code class="inl">(A B) C = A (B C)</code>. So you can group the work however you want.</li>
+    <li><strong>Distributes over addition.</strong> <code class="inl">A (B + C) = A B + A C</code>.</li>
+    <li><strong>Cost scales as O(m·k·n)</strong>. The bigger the inner dimension, the more dot-product additions happen per output cell.</li>
+  </ul>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>Almost every learnable parameter is a matmul weight</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Linear layers<span class="verdict used">used</span></div><div class="alt-desc">Every <code class="inl">nn.Linear</code> is <code class="inl">y = x · Wᵀ</code>. Includes <a href="concepts.html#qkv">c_q, c_k, c_v</a>, attention's <code class="inl">c_proj</code>, <a href="concepts.html#mlp">MLP's c_fc and c_proj</a>, and <a href="concepts.html#head">lm_head</a>.</div></div>
+    <div class="alt"><div class="alt-name">Attention scores<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#attn">QKᵀ</a> is a batched matmul: queries (B, T, H, D) times keys (B, T, H, D)ᵀ → (B, H, T, T). Flash Attention does this without materializing the result.</div></div>
+    <div class="alt"><div class="alt-name">Attention output<span class="verdict used">used</span></div><div class="alt-desc">After softmax, attention weights (T, T) times values (T, D) → output (T, D). Another matmul per head per layer.</div></div>
+    <div class="alt"><div class="alt-name">Embedding lookup<span class="verdict meh">special case</span></div><div class="alt-desc"><a href="concepts.html#embed">wte[ids]</a> is mathematically a one-hot matmul: one-hot vectors (T, V) times wte (V, d). In practice implemented as a gather, not a matmul, because most entries are zero.</div></div>
+  </div>
+</section>
+`});
+
+
+// =============================================================================
+// 03 — Dot product
+// =============================================================================
+CONCEPTS.push({
+  id: 'dot', num: '03', tag: 'similarity by sum-of-products',
+  title: 'Dot product',
+  deck: 'Multiply two vectors element-wise, sum the result. A single number that captures "how aligned" the vectors are. The atomic unit of attention.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>A similarity score between two vectors</h2>
+  <p>Take two vectors of the same length. Multiply them entry by entry. Add up the results. That's the dot product — a single number that summarizes how much the two vectors "point in the same direction".</p>
+  <ul>
+    <li><strong>Large positive</strong>: the vectors agree — large values in the same positions.</li>
+    <li><strong>Near zero</strong>: the vectors are roughly perpendicular — wherever one is large, the other is small.</li>
+    <li><strong>Large negative</strong>: the vectors disagree — large values in opposite positions or with opposite signs.</li>
+  </ul>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Two flashlights. If both point at the same wall, their beams reinforce — big bright spot (high dot product). If one points up and the other sideways, their beams barely overlap (near zero). If they point at each other, the beams cancel where they cross (negative).</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>Definition and geometric meaning</h2>
+
+  <div class="math-block" data-tex="a \\cdot b = \\sum_{i=1}^{d} a_i b_i" data-english="The dot product of <em>a</em> and <em>b</em> is the <strong>sum of their pairwise products</strong>. One multiplication per dimension, then add them all up. The result is a single scalar."></div>
+
+  <div class="math-block" data-tex="a \\cdot b = \\|a\\| \\, \\|b\\| \\cos\\theta" data-english="Equivalently, the dot product is the product of the two vectors' <strong>magnitudes</strong> times the <strong>cosine of the angle between them</strong>. <em>θ</em> = 0 → cos = 1 → maximum; <em>θ</em> = 90° → cos = 0 → zero; <em>θ</em> = 180° → cos = −1 → maximum negative."></div>
+
+  <h3>Why both formulas matter</h3>
+  <p>The first formula is what you <em>compute</em> on a GPU. The second formula is how you <em>think</em> about what the result means. They're equal — same number, two angles.</p>
+
+  <h3>Cost</h3>
+  <p>A dot product over vectors of size <em>d</em> costs <em>d</em> multiplies and <em>d−1</em> additions — linear in dimension. Cheap individually, but in attention we compute <em>T × T</em> of them, which is where the quadratic cost lives.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>The heart of attention — and matmul</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Attention scores<span class="verdict used">used</span></div><div class="alt-desc">Every entry of <a href="concepts.html#attn">QKᵀ</a> is a dot product between one query vector and one key vector. The larger the dot product, the more weight that key receives after softmax.</div></div>
+    <div class="alt"><div class="alt-name">Inside every matmul<span class="verdict used">used</span></div><div class="alt-desc">Matrix multiplication <em>is</em> dot products. Every cell of every linear-layer output is a dot product between one input row and one weight column.</div></div>
+    <div class="alt"><div class="alt-name">Cosine similarity (relative)<span class="verdict meh">cousin</span></div><div class="alt-desc">Cosine similarity is the dot product of <em>unit-normalized</em> vectors. <a href="concepts.html#qknorm">QK-norm</a> brings attention close to this — Q and K are RMS-normalized, then scaled by 1.2.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 04 — Element-wise ops & broadcasting
+// =============================================================================
+CONCEPTS.push({
+  id: 'elementwise', num: '04', tag: 'pointwise math',
+  title: 'Element-wise ops & broadcasting',
+  deck: 'When you "add two tensors" or "apply ReLU", the operation runs at every position independently. Broadcasting lets you mix shapes by stretching the small one to match the big one.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>Same operation, at every position</h2>
+  <p>An <strong>element-wise</strong> (or <em>pointwise</em>) operation does the same scalar math at every entry of a tensor, independently:</p>
+  <ul>
+    <li><code class="inl">x + y</code> — entry <em>i</em> of the result is <code class="inl">x[i] + y[i]</code>.</li>
+    <li><code class="inl">x * 3</code> — every entry of <em>x</em> is multiplied by 3.</li>
+    <li><code class="inl">torch.exp(x)</code> — apply <em>e<sup>x</sup></em> to every entry.</li>
+  </ul>
+  <p>For these to work, the two operands need <strong>matching shapes</strong>. Or rather — they need <em>broadcast-compatible</em> shapes, which is more forgiving.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Element-wise ops are like running a stamp across a sheet of paper. The stamp does the same thing wherever you press it; the paper is the tensor; <strong>every cell gets the same treatment independently</strong>. Broadcasting is when you have a small stamp and a big sheet: the rules let you reuse the small stamp by stretching its pattern.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>Element-wise and the broadcasting rules</h2>
+
+  <div class="math-block" data-tex="(A + B)_{i_1, i_2, \\ldots, i_n} = A_{i_1, \\ldots, i_n} + B_{i_1, \\ldots, i_n}" data-english="For an element-wise add, the entry at position (i₁, i₂, …) of the result equals A's entry at that position <strong>plus</strong> B's entry at the same position. No mixing across positions, no axis collapsing."></div>
+
+  <h3>Broadcasting in 4 rules</h3>
+  <ol>
+    <li>If the two tensors have different ranks, <strong>left-pad the smaller shape with 1s</strong> until ranks match. <code class="inl">(d,)</code> against <code class="inl">(B, T, d)</code> becomes <code class="inl">(1, 1, d)</code>.</li>
+    <li>Compare shapes axis by axis. <strong>Two sizes are compatible if they're equal or one of them is 1.</strong></li>
+    <li>An axis of size 1 is <strong>stretched</strong> (conceptually replicated) to match the other tensor's size.</li>
+    <li>If any axis is neither equal nor 1, you get a shape mismatch error.</li>
+  </ol>
+
+  <h3>Why broadcasting is cheap</h3>
+  <p>The replication is conceptual, not physical — no memory is copied. The library just reads the same scalar repeatedly from the smaller tensor while walking the larger one. This is why you can multiply a <code class="inl">(B, T, d)</code> activation by a <code class="inl">(d,)</code> learnable gain almost for free.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>The glue between every operation</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Residual adds<span class="verdict used">used</span></div><div class="alt-desc"><code class="inl">x = x + block(x)</code> — same shape on both sides, classic element-wise add. The backbone of <a href="concepts.html#block">every transformer block</a>.</div></div>
+    <div class="alt"><div class="alt-name">Gates & blends<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#smear">smear</a> mixes <code class="inl">x * (1 - g) + prev_x * g</code> — element-wise, with <em>g</em> broadcast across the embedding dim. <a href="concepts.html#vres">value residual</a> does the same with its 3σ gate.</div></div>
+    <div class="alt"><div class="alt-name">Scalar multiplies<span class="verdict used">used</span></div><div class="alt-desc">The 1.2 in <a href="concepts.html#qknorm">QK-norm</a> and the 15 in <a href="concepts.html#head">softcap</a> broadcast against the whole tensor. <a href="concepts.html#backout">backout</a>'s <code class="inl">x - λ · x_backout</code> is the same pattern.</div></div>
+    <div class="alt"><div class="alt-name">RMSNorm divide<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#postnorm">RMSNorm</a> computes one scalar per token, then divides every channel by it. Classic broadcast over the last axis.</div></div>
+    <div class="alt"><div class="alt-name">Activations<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#mlp">ReLU²</a>, tanh, sigmoid — all element-wise. They don't change shape; they reshape values.</div></div>
+  </div>
+</section>
+`});
+
+
+// =============================================================================
+// 05 — Softmax
+// =============================================================================
+CONCEPTS.push({
+  id: 'softmax', num: '05', tag: 'scores → probabilities',
+  title: 'Softmax',
+  deck: 'Take a vector of arbitrary real numbers and turn it into a probability distribution: all entries positive, all summing to 1, preserving the relative order. The differentiable cousin of argmax.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>The conversion from "scores" to "probabilities"</h2>
+  <p>You have a vector of scores (called <strong>logits</strong>) — could be any real numbers, positive or negative, of any magnitude. You want to turn them into a probability distribution: positive entries that sum to 1. Softmax is the function that does it, and it preserves the ranking: the biggest logit becomes the biggest probability.</p>
+  <p>Softmax is not just a normalization — it's a <strong>smooth approximation to argmax</strong>. As one logit gets much larger than the rest, its probability approaches 1 and the others approach 0. As all logits become equal, the distribution becomes uniform.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Imagine 32,768 candidates competing for a single vote. Each gets a numerical "appeal" score. Softmax is the voting rule that converts those raw scores into <strong>everyone's chance of winning</strong>: nobody gets 0 (every candidate has a non-zero chance), they sum to 100%, and the ordering is preserved. The most appealing candidate has the highest chance — but a strong second place can still win sometimes.</p>
+  </div>
+
+  <div class="whatif">
+    <div class="label">Why not just "normalize by dividing by the sum"?</div>
+    <p>Because logits can be negative — naive normalization would give negative probabilities. The exponential in softmax solves this: <code class="inl">eˣ</code> is always positive, so the sum is always positive, and ratios are always valid probabilities.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>Definition and useful properties</h2>
+
+  <div class="math-block" data-tex="\\text{softmax}(z)_i = \\frac{e^{z_i}}{\\sum_{j} e^{z_j}}" data-english="For each entry <em>z<sub>i</sub></em>, the probability is <strong><em>e</em> to the <em>z<sub>i</sub></em>, divided by the sum of <em>e</em> to the <em>z<sub>j</sub></em> over all <em>j</em></strong>. Numerator makes it positive; denominator makes it sum to 1."></div>
+
+  <h3>Shift invariance</h3>
+  <div class="math-block" data-tex="\\text{softmax}(z + c) = \\text{softmax}(z)" data-english="Adding the <strong>same constant <em>c</em> to every logit</strong> doesn't change the output. Useful for numerical stability: subtract max(z) before exponentiating, so the largest exponent is <em>e<sup>0</sup></em> = 1 and nothing overflows."></div>
+
+  <h3>Temperature</h3>
+  <p>Dividing logits by a positive temperature <em>T</em> reshapes the distribution before softmax. <em>T</em> &lt; 1 sharpens (more confident); <em>T</em> &gt; 1 flattens (more diverse); <em>T</em> → 0 collapses onto a one-hot — equivalent to argmax.</p>
+
+  <h3>Cost</h3>
+  <p>Linear in the input size: one exp per entry, one sum, one divide. On a vocabulary of 32,768 that's still trivial compared to the matmul that produced the logits.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>Two homes, same function</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Attention weights<span class="verdict used">used</span></div><div class="alt-desc">Inside <a href="concepts.html#attn">every attention layer</a>, softmax converts QKᵀ/√D + M scores into the weights that mix the value vectors. One softmax per query position, over all visible key positions.</div></div>
+    <div class="alt"><div class="alt-name">Next-token sampling<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#sample">sample_next_token</a> applies softmax to the top-k logits (after temperature scaling), then draws one token from the resulting distribution.</div></div>
+    <div class="alt"><div class="alt-name">Training cross-entropy loss<span class="verdict meh">out of scope</span></div><div class="alt-desc">During training, log-softmax of the full vocab is the per-token loss. We don't cover training here, but it's the same function.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 06 — Sigmoid and tanh
+// =============================================================================
+CONCEPTS.push({
+  id: 'sigmoid-tanh', num: '06', tag: 'smooth squashing',
+  title: 'Sigmoid and tanh',
+  deck: 'Two S-shaped curves that take any real number and squash it into a bounded range. Smooth, differentiable, and ubiquitous in gates and capping.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>S-curves that map ℝ into a bounded interval</h2>
+  <p>The <strong>sigmoid</strong> (also written σ) takes any real number and produces a value in <strong>(0, 1)</strong>. Large positive input → close to 1. Large negative input → close to 0. Zero input → exactly 0.5. Useful when you want a "gate" that can be open or closed by degrees.</p>
+  <p>The <strong>tanh</strong> (hyperbolic tangent) takes any real number and produces a value in <strong>(−1, 1)</strong>. Same shape as sigmoid but centered at zero — useful when you want a signed gate or a smooth cap that doesn't introduce a bias.</p>
+  <p>The two are closely related: tanh is just a stretched-and-shifted sigmoid. They share the property that, in the middle of the curve, the output is roughly linear in the input — but at the extremes, the output saturates.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>A volume knob with hard stops at the ends. In the middle, twisting it changes the volume linearly. Near the limits, twisting harder barely changes anything — the knob is <em>saturated</em>. Sigmoid and tanh model that "diminishing returns at the extremes" behavior with a smooth, differentiable curve.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>Definitions and how they're related</h2>
+
+  <div class="math-block" data-tex="\\sigma(x) = \\frac{1}{1 + e^{-x}}" data-english="The sigmoid: <strong>1 divided by (1 + <em>e</em> to the negative <em>x</em>)</strong>. As <em>x</em> goes to +∞, the denominator approaches 1, so the output approaches 1. As <em>x</em> goes to −∞, the denominator blows up, so the output approaches 0."></div>
+
+  <div class="math-block" data-tex="\\tanh(x) = \\frac{e^x - e^{-x}}{e^x + e^{-x}}" data-english="<strong>Hyperbolic tangent</strong>: difference over sum of <em>e</em><sup>x</sup> and <em>e</em><sup>−x</sup>. Same S-shape as sigmoid but ranging from −1 to +1 and passing through zero at <em>x</em> = 0."></div>
+
+  <div class="math-block" data-tex="\\tanh(x) = 2\\sigma(2x) - 1" data-english="Tanh is just a <strong>scaled and shifted sigmoid</strong>: feed in 2x, double the output, subtract 1. So anything you can build with one, you can build with the other."></div>
+
+  <h3>Saturation matters</h3>
+  <p>For |x| ≳ 5, both functions are essentially at their asymptotic values. The gradient (slope) is close to zero there — which is great for "this gate is firmly open/closed" but terrible if you're trying to train with backprop and your inputs land in the saturated zone. That's part of why ReLU eventually replaced sigmoid as the default activation in hidden layers.</p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>Gating and squashing, several places</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Smear gate<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#smear">σ(W · x[:24])</a>. A single scalar in (0, 1) per token, choosing how much of the previous embedding to mix in.</div></div>
+    <div class="alt"><div class="alt-name">Value residual gate<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#vres">3 · σ(W · x[:12])</a>. The 3× multiplier expands the range from (0, 1) to (0, 3), so the gate can amplify, not just attenuate.</div></div>
+    <div class="alt"><div class="alt-name">Softcap<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#head">15 · tanh(z / 15)</a>. The S-curve bounds the logits to ±15 smoothly. The 15 inside and outside cancel for small <em>z</em>, leaving identity-like behavior in the middle.</div></div>
+  </div>
+</section>
+`});
+
+
+// =============================================================================
+// 07 — Mean, variance, RMS
+// =============================================================================
+CONCEPTS.push({
+  id: 'mean-rms', num: '07', tag: 'summary statistics',
+  title: 'Mean, variance, RMS',
+  deck: 'Three ways to summarize a vector with a single number: where it sits on average, how spread out it is, and how "loud" it is regardless of sign.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>Three flavors of "summary"</h2>
+  <p>You have a vector of numbers and you want one number that describes it. Three classical choices:</p>
+  <ul>
+    <li><strong>Mean</strong> — the average. "If you redistributed evenly, this is what each entry would be."</li>
+    <li><strong>Variance</strong> — the spread. "How much do the entries differ from the mean, on average?"</li>
+    <li><strong>RMS (root-mean-square)</strong> — the magnitude. "How big is a typical entry, ignoring sign?"</li>
+  </ul>
+  <p>These are reductions: they take a vector and return a scalar. They're the building blocks of every normalization layer.</p>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Picture a long row of buildings of varying heights. <strong>Mean</strong> is the height of the skyline if you smoothed all the buildings to the same height. <strong>Variance</strong> is how uneven the skyline is — flat skyline = zero variance, jagged skyline = high variance. <strong>RMS</strong> is the "typical building size" — but it ignores whether the buildings are above or below ground level.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>Definitions and how they relate</h2>
+
+  <div class="math-block" data-tex="\\text{mean}(x) = \\bar{x} = \\frac{1}{d} \\sum_{i=1}^{d} x_i" data-english="<strong>Add up all entries and divide by how many there are.</strong> Result: a single number. Notation: <em>x̄</em> ('x-bar') is the standard shorthand."></div>
+
+  <div class="math-block" data-tex="\\text{var}(x) = \\frac{1}{d} \\sum_{i=1}^{d} (x_i - \\bar{x})^2" data-english="Variance is the <strong>mean of the squared deviations from the mean</strong>. Subtract the mean from each entry, square it (so positive and negative deviations both count), average over the vector."></div>
+
+  <div class="math-block" data-tex="\\text{RMS}(x) = \\sqrt{\\frac{1}{d} \\sum_{i=1}^{d} x_i^2}" data-english="Root-mean-square: <strong>square every entry, take the mean, take the square root</strong>. Notice the absence of <em>x̄</em> — RMS doesn't subtract the mean before squaring. So RMS measures absolute size; variance measures spread."></div>
+
+  <h3>RMS vs variance</h3>
+  <p>If the mean is zero, RMS and the standard deviation (square root of variance) are identical. When the mean is non-zero, they differ: RMS counts how big entries are; std counts how much entries vary.</p>
+
+  <h3>Why nanochat prefers RMS</h3>
+  <p>Removing the mean (centering) was found to add little value in transformer activations — what matters is the scale, not the offset. Skipping the mean computation saves one pass over the data and one subtraction per entry. <strong>RMSNorm = LayerNorm with the mean step removed.</strong></p>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>Every normalization uses RMS</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Post-embedding norm<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#postnorm">RMSNorm</a> is applied right after embedding, computed along the d_model axis. One RMS per token.</div></div>
+    <div class="alt"><div class="alt-name">Pre-attention / pre-MLP norm<span class="verdict used">used</span></div><div class="alt-desc">Every <a href="concepts.html#block">transformer block</a> RMS-normalizes its input before attention and before the MLP. Twice per block × 20 blocks = 40 RMS reductions per forward pass.</div></div>
+    <div class="alt"><div class="alt-name">QK-norm<span class="verdict used">used</span></div><div class="alt-desc"><a href="concepts.html#qknorm">QK-norm</a> applies RMS along the <em>head_dim</em> axis — once per head per token, for both Q and K independently.</div></div>
+    <div class="alt"><div class="alt-name">Final norm before lm_head<span class="verdict used">used</span></div><div class="alt-desc">One more RMSNorm right before <a href="concepts.html#head">projecting to logits</a>. Keeps the input to the final linear at a stable scale.</div></div>
+  </div>
+</section>
+`});
+
+// =============================================================================
+// 08 — Rotation in 2D
+// =============================================================================
+CONCEPTS.push({
+  id: 'rotation', num: '08', tag: 'angle without length change',
+  title: 'Rotation in 2D',
+  deck: 'Spin a point around the origin. The angle changes; the length doesn\'t. The math is two lines of trigonometry — but it underlies how transformers represent position.',
+  body: `
+<section class="block">
+  <p class="block-eyebrow">What it is</p>
+  <h2>Spinning around the origin</h2>
+  <p>Take a point in a 2D plane — say (x₁, x₂). Pick an angle θ. Rotate the point counterclockwise around the origin by that angle. You get a new point (x₁', x₂') that has the <strong>same distance from the origin</strong> but a different direction.</p>
+  <p>Two facts make rotation surprisingly useful in ML:</p>
+  <ol>
+    <li><strong>Lengths are preserved.</strong> The magnitude of a rotated vector equals the magnitude of the original. Good for stability — no information is lost.</li>
+    <li><strong>Dot products are preserved under common rotations.</strong> If you rotate two vectors by the <em>same</em> angle, their dot product doesn't change. If you rotate by <em>different</em> angles, the dot product depends only on the difference. This is the property RoPE exploits.</li>
+  </ol>
+
+  <div class="analogy">
+    <div class="label">Analogy</div>
+    <p>Like the minute hand of a clock. The hand has a fixed length. The angle changes over time. The position of the tip is fully described by "length, plus angle". Rotary positional embeddings stamp every token with a clock-hand angle proportional to its position in the sequence.</p>
+  </div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">The math</p>
+  <h2>The rotation matrix</h2>
+
+  <div class="math-block" data-tex="\\begin{bmatrix} x_1' \\\\ x_2' \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix}" data-english="The <strong>standard 2D rotation matrix</strong> applied to (x₁, x₂). New x₁ = old x₁ cos θ + old x₂ sin θ; new x₂ = −old x₁ sin θ + old x₂ cos θ. Two trig functions, four multiplies, two adds."></div>
+
+  <h3>Why those entries?</h3>
+  <p>Trigonometry: a point at angle <em>α</em> and radius <em>r</em> sits at (r cos α, r sin α). If you rotate by θ, the new angle is α + θ. Plug in the angle-sum identities for cos(α + θ) and sin(α + θ), and the rotation matrix above falls out.</p>
+
+  <h3>Length preservation</h3>
+  <div class="math-block" data-tex="\\|R x\\|^2 = (x_1')^2 + (x_2')^2 = x_1^2 + x_2^2 = \\|x\\|^2" data-english="The squared length of the rotated vector equals the squared length of the original. (Work it out: the cross-terms cos·sin cancel, and cos² + sin² = 1.) <strong>Rotation preserves magnitude</strong>."></div>
+
+  <h3>What if the rotation angles differ?</h3>
+  <div class="math-block" data-tex="(R_m x) \\cdot (R_n y) = x \\cdot (R_{n-m}^{-1} \\cdot R_n y) = f(x, y, n - m)" data-english="If you rotate <em>x</em> by angle <em>θ<sub>m</sub></em> and <em>y</em> by angle <em>θ<sub>n</sub></em>, the dot product depends only on <strong>the difference in angles</strong>. Apply this to query and key vectors at sequence positions <em>m</em> and <em>n</em>, and attention scores become a function of (<em>n</em> − <em>m</em>) — relative position."></div>
+</section>
+
+<section class="block">
+  <p class="block-eyebrow">Where it shows up in nanochat</p>
+  <h2>One place — but a load-bearing one</h2>
+  <div class="alts">
+    <div class="alt"><div class="alt-name">Rotary positional embeddings<span class="verdict used">used</span></div><div class="alt-desc">For every head of every layer, <a href="concepts.html#rope">RoPE</a> rotates Q and K in 64 independent 2D planes (one per channel-pair). Each plane uses a different angular speed. Result: attention scores depend on relative position with no extra parameters.</div></div>
+    <div class="alt"><div class="alt-name">Conceptually elsewhere<span class="verdict meh">cousin</span></div><div class="alt-desc">Higher-D rotations underlie unitary transforms, orthogonal initialization schemes, and complex-valued embeddings. nanochat keeps it strictly 2-D per plane for simplicity.</div></div>
+  </div>
+</section>
+`});
+
+// Rendering / routing
+// =============================================================================
+function el(tag, props={}, ...children) {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => {
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else e.setAttribute(k, v);
+  });
+  children.flat().forEach(c => {
+    if (c == null) return;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+
+function buildAll() {
+  const main = document.getElementById('content');
+  CONCEPTS.forEach((c, i) => {
+    const art = el('article', { id: c.id });
+    const head = el('div', { class: 'art-head' },
+      el('div', { class: 'art-eyebrow' },
+        el('span', { class: 'num' }, c.num),
+        el('span', { class: 'tag' }, c.tag)
+      ),
+      el('h1', { html: c.title }),
+      el('p', { class: 'deck' }, c.deck)
+    );
+    art.appendChild(head);
+    art.insertAdjacentHTML('beforeend', c.body);
+
+    // prev / next
+    const prev = i > 0 ? CONCEPTS[i - 1] : null;
+    const next = i < CONCEPTS.length - 1 ? CONCEPTS[i + 1] : null;
+    const pn = el('div', { class: 'pn' },
+      prev
+        ? el('a', { href: '#' + prev.id },
+            el('div', { class: 'dir' }, '← previous'),
+            el('div', { class: 'nxt-title' }, `${prev.num}. ${prev.title}`))
+        : el('a', { class: 'disabled' }, el('div', { class: 'dir' }, '·')),
+      next
+        ? el('a', { class: 'next', href: '#' + next.id },
+            el('div', { class: 'dir' }, 'next →'),
+            el('div', { class: 'nxt-title' }, `${next.num}. ${next.title}`))
+        : el('a', { class: 'disabled next' }, el('div', { class: 'dir' }, '·'))
+    );
+    art.appendChild(pn);
+
+    art.appendChild(el('footer', { class: 'foot' },
+      'foundation ' + c.num + ' of ' + CONCEPTS.length + ' · ',
+      el('a', { href: 'inference_visualization.html' }, '↗ back to the inference overview')
+    ));
+
+    main.appendChild(art);
+  });
+
+  // Build rail
+  const rail = document.getElementById('railList');
+  CONCEPTS.forEach(c => {
+    const li = el('li', {},
+      el('a', { class: 'chap', href: '#' + c.id, 'data-id': c.id }, c.title)
+    );
+    rail.appendChild(li);
+  });
+}
+
+function show(id) {
+  if (!id || !document.getElementById(id)) id = CONCEPTS[0].id;
+  document.querySelectorAll('article').forEach(a => a.classList.toggle('active', a.id === id));
+  document.querySelectorAll('.rail a.chap').forEach(a => a.classList.toggle('active', a.getAttribute('data-id') === id));
+  // Update document title
+  const c = CONCEPTS.find(x => x.id === id);
+  if (c) document.title = c.num + '. ' + c.title + ' · math foundations';
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  // Render math and code in the now-active article
+  const active = document.getElementById(id);
+  active.querySelectorAll('div.math-block[data-tex]').forEach(d => {
+    if (d.dataset.rendered) return;
+    if (window.katex) {
+      katex.render(d.dataset.tex, d, { displayMode: true, throwOnError: false });
+      d.dataset.rendered = '1';
+      // Wrap with a math-fig and append the English narration if data-english is present
+      const english = d.dataset.english;
+      if (english && d.parentNode && !d.parentNode.classList.contains('math-fig')) {
+        const fig = document.createElement('div');
+        fig.className = 'math-fig';
+        const says = document.createElement('div');
+        says.className = 'math-says';
+        says.innerHTML = english;
+        d.parentNode.insertBefore(fig, d);
+        fig.appendChild(d);
+        fig.appendChild(says);
+      }
+    }
+  });
+  active.querySelectorAll('pre.code code').forEach(b => {
+    if (b.dataset.hl) return;
+    if (window.hljs) { hljs.highlightElement(b); b.dataset.hl = '1'; }
+  });
+}
+
+function init() {
+  buildAll();
+  show(location.hash.slice(1));
+  window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>
