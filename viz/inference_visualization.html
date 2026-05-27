@@ -109,7 +109,6 @@ body {
 .pipeline-overview .pf-kv-rail { fill: none; stroke: var(--k); stroke-width: 1; stroke-dasharray: 2 4; opacity: 0.5; }
 .pipeline-overview .pf-kv-tap { stroke: var(--k); stroke-width: 1; opacity: 0.4; stroke-dasharray: 2 3; }
 .pipeline-overview .pf-kv-label { font-family: var(--mono); font-size: 10px; fill: var(--k); letter-spacing: 0.05em; }
-.pipeline-overview .pf-particle { fill: var(--gold); }
 .pipeline-overview .pf-endpoint-label { font-family: var(--mono); font-size: 10px; fill: var(--muted); letter-spacing: 0.05em; }
 .pipeline-overview .pf-endpoint-arrow { fill: var(--muted); }
 .pipeline-overview .pf-tooltip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--gold); border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 12px; color: var(--text); white-space: nowrap; opacity: 0; transition: opacity 0.15s; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 10; }
@@ -119,9 +118,6 @@ body {
 .pipeline-overview .pf-legend .item { display: flex; align-items: center; gap: 6px; }
 .pipeline-overview .pf-legend .sw { width: 10px; height: 10px; border-radius: 2px; }
 .pipeline-overview .pf-legend .sw.line { width: 16px; height: 2px; border-radius: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .pipeline-overview .pf-particle { display: none; }
-}
 
 /* Section */
 section.stage { padding: 80px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 24px; }
@@ -471,39 +467,8 @@ function mountOverview() {
       .on('mouseleave', () => hideTip());
     g.append('circle').attr('class', 'bg').attr('cx', x).attr('cy', y).attr('r', 14);
     g.append('text').attr('class', 'num').attr('x', x).attr('y', y + 4).text(p.num);
-    // Label below
     g.append('text').attr('class', 'lbl').attr('x', x).attr('y', y + 36).text(p.name);
   });
-
-  // Animated particle group
-  const particleG = svg.append('g').attr('class', 'pf-particles');
-  const pathNode = svg.select('path.pf-flow-line').node();
-  const totalLen = pathNode.getTotalLength();
-  const NPARTICLES = 5;
-  const particles = [];
-  for (let i = 0; i < NPARTICLES; i++) {
-    particles.push(particleG.append('circle').attr('class', 'pf-particle').attr('r', 2.5).attr('opacity', 0));
-  }
-
-  // Animation loop
-  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    let t0 = performance.now();
-    function tick(now) {
-      const t = (now - t0) / 1000;
-      for (let i = 0; i < NPARTICLES; i++) {
-        const phase = (t * 0.085 + i / NPARTICLES) % 1;
-        const len = phase * totalLen;
-        const pt = pathNode.getPointAtLength(len);
-        // Fade at endpoints
-        let op = 0.85;
-        if (phase < 0.04) op *= phase / 0.04;
-        else if (phase > 0.96) op *= (1 - phase) / 0.04;
-        particles[i].attr('cx', pt.x).attr('cy', pt.y).attr('opacity', op);
-      }
-      raf = requestAnimationFrame(tick);
-    }
-    let raf = requestAnimationFrame(tick);
-  }
 
   wrap.appendChild(svg.node());
   root.appendChild(wrap);
