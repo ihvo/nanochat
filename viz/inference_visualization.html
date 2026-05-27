@@ -148,6 +148,11 @@ pre.code code { font-family: var(--mono); }
 /* Math */
 .math-block { padding: 16px 20px; background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 16px 0; overflow-x: auto; }
 .katex { font-size: 1.05em !important; }
+.math-fig { background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 16px 0; overflow-x: auto; }
+.math-fig .math-block { background: transparent; border-left: none; border-radius: 0; margin: 0; padding-bottom: 6px; }
+.math-says { font-family: var(--sans); font-style: italic; font-size: 13.5px; color: var(--muted); line-height: 1.55; padding: 0 20px 14px; }
+.math-says strong { color: var(--text); font-style: normal; font-weight: 500; }
+.math-says::before { content: "reads as"; font-style: normal; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--gold-soft); margin-right: 10px; padding: 1px 6px; border: 1px solid var(--gold-soft); border-radius: 3px; vertical-align: 1px; }
 
 /* Stat tiles */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
@@ -531,10 +536,16 @@ function code(text, lang='python', caption='') {
   }
   return pre;
 }
-function math(tex, display=true) {
+function math(tex, english=null, display=true) {
   const d = el('div', { class: display ? 'math-block' : '' });
   d.dataset.tex = tex;
   d.dataset.display = display;
+  if (english && display) {
+    const fig = el('div', { class: 'math-fig' });
+    fig.appendChild(d);
+    fig.appendChild(el('div', { class: 'math-says', html: english }));
+    return fig;
+  }
   return d;
 }
 function tex(d) {
@@ -695,7 +706,8 @@ stage({
   mount(root) {
     root.appendChild(el('div', { class: 'grid-2' },
       el('div', {},
-        math(`\\text{wte} \\in \\mathbb{R}^{V \\times d}, \\quad \\text{wte}[\\text{idx}] = X \\in \\mathbb{R}^{B \\times T \\times d}`),
+        math(`\\text{wte} \\in \\mathbb{R}^{V \\times d}, \\quad \\text{wte}[\\text{idx}] = X \\in \\mathbb{R}^{B \\times T \\times d}`,
+          `The embedding table <strong>wte</strong> lives in a <em>V</em>-by-<em>d</em> matrix. Indexing it with the token IDs returns <strong>X</strong>, a <em>batch × sequence-length × d_model</em> tensor.`),
         el('p', { style: 'color:var(--muted); font-size:14px;' },
           'Tokens at this stage are pure indexing — no math. The cost is memory: V·d ≈ ',
           el('span', { style: 'color:var(--gold); font-family:var(--mono);' }, (CFG.vocab_padded * CFG.n_embd / 1e6).toFixed(1) + 'M params'),
@@ -791,7 +803,8 @@ stage({
   mount(root) {
     const grid = el('div', { class: 'grid-2' });
     grid.appendChild(el('div', {},
-      math(`\\text{RMSNorm}(x) = \\frac{x}{\\sqrt{\\frac{1}{d}\\sum_i x_i^2 + \\epsilon}}`),
+      math(`\\text{RMSNorm}(x) = \\frac{x}{\\sqrt{\\frac{1}{d}\\sum_i x_i^2 + \\epsilon}}`,
+        `RMSNorm of x equals x divided by the square root of the mean of its squared entries, plus a tiny epsilon for safety. In words: <strong>rescale each vector so its root-mean-square magnitude is 1</strong>.`),
       el('p', { style: 'color:var(--muted); font-size:14px;' },
         "Note: no learnable scale or bias. This is intentional — nanochat saves params and lets the residual stream find its own scale via per-layer x0 / residual lambdas (next stage)."),
       code(`x = F.rms_norm(x, (x.size(-1),))`, 'python', 'gpt.py · line 428')
@@ -1214,8 +1227,10 @@ def apply_rotary_emb(x, cos, sin):
     y2 = -x1 * sin + x2 * cos
     return torch.cat([y1, y2], dim=-1)`, 'python', 'gpt.py · lines 43-49 (half-split rotation)'));
 
-    root.appendChild(math(`\\theta_k = \\text{base}^{-2k/D}, \\quad \\text{base}=10000, \\quad k=0..D/2-1`));
-    root.appendChild(math(`\\begin{bmatrix} y_1 \\\\ y_2 \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix}`));
+    root.appendChild(math(`\\theta_k = \\text{base}^{-2k/D}, \\quad \\text{base}=10000, \\quad k=0..D/2-1`,
+      `For each channel-pair index <em>k</em>, the angular speed is <strong>10,000 to the power of negative 2k over D</strong>. Pair k=0 rotates fast (encodes local position); the last pair rotates very slowly (encodes global position).`));
+    root.appendChild(math(`\\begin{bmatrix} y_1 \\\\ y_2 \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix}`,
+      `The standard <strong>2D rotation by angle θ</strong>: new y₁ = x₁ cos θ + x₂ sin θ; new y₂ = −x₁ sin θ + x₂ cos θ. Applied to each (x₁, x₂) pair independently.`));
 
     root.appendChild(code(`# nanochat/gpt.py — precompute rotary tables
 def _precompute_rotary_embeddings(self):
@@ -1309,7 +1324,8 @@ k = F.rms_norm(k, (k.size(-1),))
 q = q * 1.2
 k = k * 1.2`, 'python', 'gpt.py · lines 107-112 (paraphrased)'));
 
-    root.appendChild(math(`\\text{attn}_{ij} = \\frac{(s\\hat{q_i}) \\cdot (s\\hat{k_j})}{\\sqrt{D}} = \\frac{s^2}{\\sqrt{D}} \\hat{q_i}\\cdot\\hat{k_j}, \\quad s = 1.2`));
+    root.appendChild(math(`\\text{attn}_{ij} = \\frac{(s\\hat{q_i}) \\cdot (s\\hat{k_j})}{\\sqrt{D}} = \\frac{s^2}{\\sqrt{D}} \\hat{q_i}\\cdot\\hat{k_j}, \\quad s = 1.2`,
+      `After QK-norm both <em>q̂</em> and <em>k̂</em> are unit-RMS, so the scale on each side multiplies in: <strong>1.2 × 1.2 = 1.44</strong> times the unit dot product, all divided by √D. Restores some of the softmax sharpness that QK-norm removed.`));
 
     root.appendChild(el('div', { class: 'callout' },
       el('div', { class: 'label' }, 'Why s = 1.2'),
@@ -1507,7 +1523,8 @@ class MLP(nn.Module):
         x = self.c_proj(x)
         return x`, 'python', 'gpt.py · MLP class (lines 129-139)'));
 
-    root.appendChild(math(`\\text{MLP}(x) = W_2 \\cdot \\text{ReLU}(W_1 x)^2, \\quad W_1 \\in \\mathbb{R}^{4d \\times d}`));
+    root.appendChild(math(`\\text{MLP}(x) = W_2 \\cdot \\text{ReLU}(W_1 x)^2, \\quad W_1 \\in \\mathbb{R}^{4d \\times d}`,
+      `Project <em>x</em> up to width 4d with <em>W₁</em>, take ReLU then square it elementwise, then project back down to width d with <em>W₂</em>. <strong>Two matrix multiplies and a cheap nonlinearity in between.</strong>`));
 
     const card = el('div', { class: 'card' });
     card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Activation curve · ReLU²'));
@@ -1638,7 +1655,8 @@ logits = logits.float()                  # to fp32 for stability
 softcap = 15
 logits = softcap * torch.tanh(logits / softcap)`, 'python', 'gpt.py · lines 481-491 (paraphrased)'));
 
-    root.appendChild(math(`\\text{softcap}(z; c) = c \\cdot \\tanh(z / c), \\quad c = 15`));
+    root.appendChild(math(`\\text{softcap}(z; c) = c \\cdot \\tanh(z / c), \\quad c = 15`,
+      `Divide each logit by 15, squash through tanh (output in (−1, 1)), then multiply back by 15. <strong>Small logits pass through nearly unchanged; large ones saturate at ±15.</strong>`));
 
     const card = el('div', { class: 'card' });
     card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Softcap curve'));

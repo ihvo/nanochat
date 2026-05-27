@@ -90,6 +90,12 @@ section.block:first-of-type { border-top: 1px solid var(--gold); border-top-widt
 /* Math */
 .math-block { padding: 14px 18px; background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 18px 0; overflow-x: auto; }
 .katex { font-size: 1.05em !important; }
+.math-fig { background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 18px 0; overflow-x: auto; }
+.math-fig .math-block { background: transparent; border-left: none; border-radius: 0; margin: 0; padding-bottom: 6px; }
+.math-says { font-family: var(--sans); font-style: italic; font-size: 14px; color: var(--muted); line-height: 1.6; padding: 0 18px 14px; }
+.math-says strong { color: var(--text); font-style: normal; font-weight: 500; }
+.math-says em { color: var(--text); font-style: italic; }
+.math-says::before { content: "reads as"; font-style: normal; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--gold-soft); margin-right: 10px; padding: 1px 6px; border: 1px solid var(--gold-soft); border-radius: 3px; vertical-align: 1px; }
 
 /* Code */
 pre.code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; overflow-x: auto; margin: 16px 0; font-size: 13.5px; line-height: 1.6; }
@@ -194,7 +200,7 @@ CONCEPTS.push({
   <h3>Encoding a new string</h3>
   <p>At inference, we apply the same merges in the same order. The text <em>"unfriendliness"</em> might split as <code class="inl">"un" + "friend" + "li" + "ness"</code> if those were learned as common chunks. Rare or made-up words decompose into smaller pieces — in the worst case, all the way down to individual bytes.</p>
 
-  <div class="math-block" data-tex="\\text{encode}: \\text{string} \\to \\mathbb{Z}^{T}, \\quad \\text{decode}: \\mathbb{Z}^{T} \\to \\text{string}"></div>
+  <div class="math-block" data-tex="\\text{encode}: \\text{string} \\to \\mathbb{Z}^{T}, \\quad \\text{decode}: \\mathbb{Z}^{T} \\to \\text{string}" data-english="Encoding maps a string to a length-<em>T</em> sequence of integers; decoding maps it back. <strong>The two are inverses</strong> — round-trip is exact."></div>
   <p>The contract: encode then decode gets back exactly your input string. Always. No information loss, no Unicode surprises, no edge cases. (This is why byte-level BPE is preferred over character-level.)</p>
 
   <h3>A few extras nanochat ships</h3>
@@ -249,7 +255,7 @@ CONCEPTS.push({
   <h3>The big picture</h3>
   <p>It's a lookup table. A 2D matrix <strong>wte</strong> of shape <code class="inl">(vocab_size, d_model)</code>. To embed token id <em>k</em>, you read row <em>k</em>. That's it. There is no multiplication, no nonlinearity, no normalization at this stage — just a memory load.</p>
 
-  <div class="math-block" data-tex="\\text{wte} \\in \\mathbb{R}^{V \\times d}, \\quad X = \\text{wte}[\\text{ids}] \\in \\mathbb{R}^{B \\times T \\times d}"></div>
+  <div class="math-block" data-tex="\\text{wte} \\in \\mathbb{R}^{V \\times d}, \\quad X = \\text{wte}[\\text{ids}] \\in \\mathbb{R}^{B \\times T \\times d}" data-english="The embedding table <strong>wte</strong> is a <em>V</em>-by-<em>d</em> matrix of real numbers. Looking it up with a batch of token IDs produces <strong>X</strong>, a tensor of shape <em>batch × sequence-length × d_model</em>."></div>
 
   <h3>Where the learning happens</h3>
   <p>Every entry in <strong>wte</strong> is a learnable parameter. During training, gradients flow back to the rows of <strong>wte</strong> that correspond to the tokens in the current batch — the model nudges those rows in the direction that reduces the loss. Over millions of steps, rows for similar-meaning tokens drift together because they get nudged in similar directions on similar examples.</p>
@@ -305,7 +311,7 @@ CONCEPTS.push({
   <h2>How does it actually work?</h2>
   <h3>The big picture</h3>
   <p>For each token vector <code class="inl">x</code> of size <em>d</em>, compute the root-mean-square of its entries and divide by it. That's all.</p>
-  <div class="math-block" data-tex="\\text{RMSNorm}(x) = \\frac{x}{\\sqrt{\\frac{1}{d}\\sum_{i=1}^{d} x_i^2 + \\epsilon}}"></div>
+  <div class="math-block" data-tex="\\text{RMSNorm}(x) = \\frac{x}{\\sqrt{\\frac{1}{d}\\sum_{i=1}^{d} x_i^2 + \\epsilon}}" data-english="For each token vector, compute the <strong>mean of its squared entries</strong>, take the square root (plus a tiny epsilon for safety), and divide every entry by that number. Result: a vector pointing the same direction, scaled so its root-mean-square is 1."></div>
   <p>The <code class="inl">ε</code> is a tiny constant (like 1e-5) added inside the square root to prevent division by zero when <code class="inl">x</code> is all zeros.</p>
 
   <h3>"Why no mean subtraction?"</h3>
@@ -365,7 +371,7 @@ CONCEPTS.push({
 
   <h3>The big picture</h3>
   <p>Right after the post-embedding RMSNorm, every token vector <code class="inl">x</code> is replaced by a convex combination of itself and the previous token's vector <code class="inl">prev_x</code>:</p>
-  <div class="math-block" data-tex="x_t \\leftarrow (1 - g_t) \\cdot x_t + g_t \\cdot x_{t-1}, \\quad g_t = \\sigma(W_{\\text{smear}} \\cdot x_t[:24])"></div>
+  <div class="math-block" data-tex="x_t \\leftarrow (1 - g_t) \\cdot x_t + g_t \\cdot x_{t-1}, \\quad g_t = \\sigma(W_{\\text{smear}} \\cdot x_t[:24])" data-english="Replace each token vector <em>x<sub>t</sub></em> with a <strong>weighted blend of itself and the previous token's vector</strong>. The mixing weight <em>g<sub>t</sub></em> is a sigmoid of a tiny linear projection of the first 24 channels — output in (0, 1)."></div>
   <p>The gate <code class="inl">g_t ∈ (0, 1)</code> is produced by a tiny linear that looks at only the first 24 channels of <code class="inl">x_t</code> (a compressed "what kind of token am I?" signal), passed through a sigmoid. <code class="inl">g_t = 0</code> means "keep me as I am"; <code class="inl">g_t = 1</code> means "I am the previous token".</p>
 
   <h3>Why a 24-channel slice?</h3>
@@ -431,7 +437,7 @@ CONCEPTS.push({
 
   <h3>One block</h3>
   <p>The body of a single block is the classic pre-norm transformer recipe:</p>
-  <div class="math-block" data-tex="x \\leftarrow x + \\text{Attention}(\\text{Norm}(x)); \\quad x \\leftarrow x + \\text{MLP}(\\text{Norm}(x))"></div>
+  <div class="math-block" data-tex="x \\leftarrow x + \\text{Attention}(\\text{Norm}(x)); \\quad x \\leftarrow x + \\text{MLP}(\\text{Norm}(x))" data-english="<strong>Pre-norm transformer block.</strong> First, normalize <em>x</em>, run attention, add the result back into <em>x</em>. Then normalize again, run the MLP, add it in. The residual stream <em>x</em> is never replaced — only added to."></div>
   <p>Two sublayers, two residual adds. Inside attention and MLP are stages 06–11. The "Norm" here is RMSNorm without learnable scale, applied per-token along the d_model axis.</p>
 
   <h3>The loop wrapper</h3>
@@ -444,7 +450,7 @@ for layer_idx in range(self.config.n_layer):
     if layer_idx == self.backout_layer:
         x_backout = x</code></pre>
   <p>Two learnable per-layer scalars (<code class="inl">resid_λ</code>, <code class="inl">x0_λ</code>) control the blend. Their initial values are a linear decay:</p>
-  <div class="math-block" data-tex="\\text{resid}\\_\\lambda_\\ell : 1.15 \\to 1.05, \\quad \\text{x0}\\_\\lambda_\\ell : 0.20 \\to 0.05"></div>
+  <div class="math-block" data-tex="\\text{resid}\\_\\lambda_\\ell : 1.15 \\to 1.05, \\quad \\text{x0}\\_\\lambda_\\ell : 0.20 \\to 0.05" data-english="Both lambdas <strong>decay linearly across the 20 layers</strong>. The residual scale shrinks slightly from 1.15 down to 1.05; the x0 mix-in fades from 20% at the first block down to 5% at the last."></div>
   <p>So early layers lean a bit more on x0 (20%), late layers barely use it (5%). The lambdas are trained, so the model can reshape this schedule as it learns.</p>
 
   <h3>Why init resid_λ > 1?</h3>
@@ -513,12 +519,12 @@ self.c_v = Linear(d_model, n_kv_head * head_dim, bias=False)</code></pre>
 
   <h3>How GQA shares</h3>
   <p>The 10 query heads are bundled into 5 <em>groups</em> of 2. Each group shares a single (K, V) pair:</p>
-  <div class="math-block" data-tex="\\text{Q}_{0}, \\text{Q}_{1} \\to (K_0, V_0), \\quad \\text{Q}_{2}, \\text{Q}_{3} \\to (K_1, V_1), \\quad \\ldots"></div>
+  <div class="math-block" data-tex="\\text{Q}_{0}, \\text{Q}_{1} \\to (K_0, V_0), \\quad \\text{Q}_{2}, \\text{Q}_{3} \\to (K_1, V_1), \\quad \\ldots" data-english="<strong>Two consecutive query heads share one KV head</strong>. Q₀ and Q₁ both look at (K₀, V₀); Q₂ and Q₃ both look at (K₁, V₁); and so on. With 10 Q heads and 5 KV heads, group size is 2."></div>
   <p>When computing <code class="inl">QKᵀ</code>, the KV head is broadcast (repeated) across its group. Flash Attention handles this broadcasting natively — no memory copy needed.</p>
 
   <h3>Why GQA matters</h3>
   <p>At inference, the bottleneck is <strong>memory bandwidth</strong>, not compute. Every decode step reads the entire K/V cache from memory for every layer. With GQA, that cache is half the size:</p>
-  <div class="math-block" data-tex="\\text{KV memory} = n\\_layers \\times T \\times n\\_kv\\_head \\times head\\_dim"></div>
+  <div class="math-block" data-tex="\\text{KV memory} = n\\_layers \\times T \\times n\\_kv\\_head \\times head\\_dim" data-english="Total scalars in the K cache: <strong>depth × sequence length × KV-head count × head dimension</strong>. Halving <em>n_kv_head</em> (MHA → GQA) halves this; the V cache has the same shape."></div>
   <p>Cutting <code class="inl">n_kv_head</code> from 10 to 5 halves the KV cache, halves the memory bandwidth, roughly doubles tokens/sec. Quality cost is small and often negligible.</p>
 
   <h3>One more wrinkle: shapes for Flash Attention 3</h3>
@@ -575,7 +581,7 @@ CONCEPTS.push({
   <pre class="code"><code class="language-python">if ve is not None:
     ve_gate = 3 * torch.sigmoid(self.ve_gate(x[..., :12]))   # (B, T, 1)
     v = v + ve_gate.unsqueeze(-1) * ve</code></pre>
-  <div class="math-block" data-tex="v_\\ell \\leftarrow v_\\ell + g \\cdot v_{\\text{share}}, \\quad g = 3 \\sigma(W_{ve} \\cdot x[:12])"></div>
+  <div class="math-block" data-tex="v_\\ell \\leftarrow v_\\ell + g \\cdot v_{\\text{share}}, \\quad g = 3 \\sigma(W_{ve} \\cdot x[:12])" data-english="<strong>Add a gated copy of the shared value tensor</strong> to this layer's value. The gate <em>g</em> is three times a sigmoid of a 12-channel linear projection — so it can both attenuate (g near 0) and amplify (g up to 3)."></div>
 
   <h3>Why the 3× multiplier?</h3>
   <p>Sigmoid alone outputs values in <code class="inl">(0, 1)</code> — only attenuation is possible. Multiplying by 3 expands the range to <code class="inl">(0, 3)</code>, so the gate can both <em>amplify</em> and attenuate the residual. The model can decide an early V is more useful than the current one and weight it accordingly.</p>
@@ -631,7 +637,7 @@ CONCEPTS.push({
 
   <h3>The key idea</h3>
   <p>For each head, split the head_dim (here, 128) into 64 pairs. Treat each pair as the <em>(x, y)</em> coordinates of a point in a 2D plane. Rotate that point by an angle <code class="inl">θ</code> proportional to the token's sequence position.</p>
-  <div class="math-block" data-tex="\\begin{bmatrix} x_1' \\\\ x_2' \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix}"></div>
+  <div class="math-block" data-tex="\\begin{bmatrix} x_1' \\\\ x_2' \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix}" data-english="The <strong>standard 2D rotation by angle θ</strong>. New x₁ = old x₁ cos θ + old x₂ sin θ; new x₂ = −old x₁ sin θ + old x₂ cos θ. Applied independently to each (x₁, x₂) channel pair."></div>
   <p>Do this independently for every (x, y) pair, with a <strong>different angular speed</strong> per pair. The result: each Q and K vector gets stamped with a fingerprint of its position. When you compute <code class="inl">Q · K</code> for two tokens at positions <em>m</em> and <em>n</em>, the math works out so the dot product is a function of <code class="inl">(m - n)</code> — relative position.</p>
 
   <h3>The half-split convention</h3>
@@ -651,7 +657,7 @@ CONCEPTS.push({
 
   <h3>The angular-speed schedule</h3>
   <p>Each of the 64 pairs gets its own frequency:</p>
-  <div class="math-block" data-tex="\\theta_k(t) = t \\cdot 10000^{-2k/D}, \\quad k = 0, 1, \\ldots, D/2 - 1"></div>
+  <div class="math-block" data-tex="\\theta_k(t) = t \\cdot 10000^{-2k/D}, \\quad k = 0, 1, \\ldots, D/2 - 1" data-english="For channel-pair <em>k</em>, the rotation angle at token position <em>t</em> is <em>t</em> times an <strong>angular speed that shrinks geometrically with k</strong>. Pair 0 rotates fastest; the last pair rotates extremely slowly."></div>
   <p>Low-k pairs rotate <em>fast</em> (one full revolution every ~few tokens — encodes <strong>local</strong> position). High-k pairs rotate <em>slowly</em> (one full revolution over many thousands of tokens — encodes <strong>global</strong> position). The model can pick which frequencies to listen to per head.</p>
 
   <h3>Precompute everything</h3>
@@ -719,7 +725,7 @@ k = k * 1.2</code></pre>
   <h3>The 1.2 scale</h3>
   <p>After QK-norm, both vectors have norm ≈ √D (since RMS = 1 implies ‖x‖ ≈ √D). Their dot product is bounded by D in the worst case (perfectly aligned), and 0 in expectation for random vectors. The standard <code class="inl">1/√D</code> scaling then gives logits in a tight range — too tight, actually, for softmax to discriminate.</p>
   <p>The fixed 1.2 multiplier on both Q and K restores some of the spread:</p>
-  <div class="math-block" data-tex="\\text{attn logits} = \\frac{(1.2 \\hat{q}) \\cdot (1.2 \\hat{k})}{\\sqrt{D}} = \\frac{1.44}{\\sqrt{D}} \\hat{q} \\cdot \\hat{k}"></div>
+  <div class="math-block" data-tex="\\text{attn logits} = \\frac{(1.2 \\hat{q}) \\cdot (1.2 \\hat{k})}{\\sqrt{D}} = \\frac{1.44}{\\sqrt{D}} \\hat{q} \\cdot \\hat{k}" data-english="<em>q̂</em> and <em>k̂</em> are the QK-normalized unit-RMS vectors. Each side scaled by 1.2 contributes <strong>1.44 to the dot-product scale</strong>, combined with the usual 1/√D to give the actual softmax input."></div>
   <p>Why 1.2 specifically? Empirical sweet spot. Big enough to keep softmax sharp; small enough not to saturate. The model can no longer cheat by growing Q/K norms (the norm step kills that), so this scale is fixed.</p>
 
   <h3>Two-sided scaling</h3>
@@ -781,9 +787,9 @@ CONCEPTS.push({
   <h2>How does it actually work?</h2>
 
   <h3>The math, in symbols</h3>
-  <div class="math-block" data-tex="\\text{Attention}(Q, K, V) = \\text{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{D}} + M\\right) V"></div>
+  <div class="math-block" data-tex="\\text{Attention}(Q, K, V) = \\text{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{D}} + M\\right) V" data-english="Form all <strong>query × key dot products</strong>, scale by 1/√D, add the mask <em>M</em>, softmax over the keys to get attention weights, then take the <strong>weighted sum of the values</strong>."></div>
   <p>Here <code class="inl">M</code> is the mask — a matrix of zeros and <code class="inl">-∞</code>. The causal-plus-window mask:</p>
-  <div class="math-block" data-tex="M_{i,j} = \\begin{cases} 0 & \\text{if } i - W \\le j \\le i \\\\ -\\infty & \\text{otherwise} \\end{cases}"></div>
+  <div class="math-block" data-tex="M_{i,j} = \\begin{cases} 0 & \\text{if } i - W \\le j \\le i \\\\ -\\infty & \\text{otherwise} \\end{cases}" data-english="Key position <em>j</em> is <strong>visible to query <em>i</em></strong> only if <em>j</em> is within the last <em>W</em> tokens and not in the future. Otherwise the mask is minus infinity, and softmax sends those positions to exactly zero."></div>
   <p>The <code class="inl">-∞</code> entries become zero after softmax (<code class="inl">e^{-∞} = 0</code>), so those positions contribute nothing.</p>
 
   <h3>The naive computation</h3>
@@ -864,7 +870,7 @@ CONCEPTS.push({
         x = F.relu(x).square()   # nonlinearity  (4d → 4d, elementwise)
         x = self.c_proj(x)       # project DOWN (4d → d)
         return x</code></pre>
-  <div class="math-block" data-tex="\\text{MLP}(x) = W_2 \\cdot \\big(\\text{ReLU}(W_1 x)\\big)^2, \\quad W_1 \\in \\mathbb{R}^{4d \\times d}, \\; W_2 \\in \\mathbb{R}^{d \\times 4d}"></div>
+  <div class="math-block" data-tex="\\text{MLP}(x) = W_2 \\cdot \\big(\\text{ReLU}(W_1 x)\\big)^2, \\quad W_1 \\in \\mathbb{R}^{4d \\times d}, \\; W_2 \\in \\mathbb{R}^{d \\times 4d}" data-english="<strong>Project up</strong> by <em>W₁</em> from width <em>d</em> to width <em>4d</em>, apply ReLU and then square it elementwise, then <strong>project back down</strong> by <em>W₂</em>. Two matrix multiplies bracket a cheap pointwise nonlinearity."></div>
 
   <h3>Why a 4× expansion?</h3>
   <p>You need somewhere bigger to "work" before projecting back to the residual stream. Empirically, 4× is the sweet spot — wide enough that the model has room to compute, narrow enough to keep parameter cost reasonable. Almost every transformer since 2017 uses 4× (or close to it; some SwiGLU variants use ~2.67× because they have 3 matrices instead of 2).</p>
@@ -939,7 +945,7 @@ for layer_idx in range(self.config.n_layer):
 
 # After the loop, before the final norm:
 x = x - self.backout_lambda * x_backout</code></pre>
-  <div class="math-block" data-tex="x_{\\text{final}} = x_{\\text{layer}\\,N} - \\lambda \\cdot x_{\\text{layer}\\,N/2}"></div>
+  <div class="math-block" data-tex="x_{\\text{final}} = x_{\\text{layer}\\,N} - \\lambda \\cdot x_{\\text{layer}\\,N/2}" data-english="The final residual stream is the output of the last block <strong>minus a learnable multiple λ of the midpoint snapshot</strong>. The second half of the network can dial λ to subtract back contributions from the first half."></div>
 
   <h3>The learned scalar</h3>
   <p><code class="inl">backout_lambda</code> is a single <code class="inl">nn.Parameter</code> (one number). Initialized small (e.g. 0.1) and adjusted by gradient descent. The model can dial it to zero to effectively disable backout, or grow it to subtract more strongly. In trained nanochat checkpoints it ends up in the 0.1-0.5 range typically.</p>
@@ -1014,7 +1020,7 @@ logits = 15 * torch.tanh(logits / 15)           # softcap</code></pre>
   <p>The rest of the model runs in bf16 for speed, but we cast logits to fp32 before softcap and softmax. Softmax over thousands of values is very sensitive to numerical precision — fp32 here costs almost nothing and prevents subtle bugs.</p>
 
   <h3>The softcap function</h3>
-  <div class="math-block" data-tex="\\text{softcap}(z; c) = c \\cdot \\tanh\\!\\left(\\frac{z}{c}\\right), \\quad c = 15"></div>
+  <div class="math-block" data-tex="\\text{softcap}(z; c) = c \\cdot \\tanh\\!\\left(\\frac{z}{c}\\right), \\quad c = 15" data-english="Divide each logit by 15, squash through hyperbolic tangent into (−1, 1), then multiply back by 15. <strong>Identity-like in the middle, saturating to ±15 at the extremes</strong> — smooth and differentiable everywhere."></div>
   <p>Properties:</p>
   <ul>
     <li>Near zero, <code class="inl">tanh(z/c) ≈ z/c</code>, so output ≈ z. <strong>Identity for small logits.</strong></li>
@@ -1084,7 +1090,7 @@ CONCEPTS.push({
 
   <h3>Step 1 — Temperature</h3>
   <p>Divide every logit by a positive number T. After softmax:</p>
-  <div class="math-block" data-tex="p_i = \\frac{e^{z_i / T}}{\\sum_j e^{z_j / T}}"></div>
+  <div class="math-block" data-tex="p_i = \\frac{e^{z_i / T}}{\\sum_j e^{z_j / T}}" data-english="Standard softmax, but with logits divided by temperature <em>T</em> first. <strong>T &lt; 1 sharpens</strong> the distribution (more confident); <strong>T &gt; 1 flattens</strong> it (more diverse); <strong>T → 0</strong> collapses to a one-hot on the argmax (greedy)."></div>
   <ul>
     <li><strong>T = 1.0</strong>: no change.</li>
     <li><strong>T &lt; 1.0</strong> (e.g. 0.5): sharpens the distribution. Confident becomes more confident, unlikely becomes more unlikely. Outputs become more deterministic.</li>
@@ -1181,8 +1187,8 @@ if self.layer_idx == self.config.n_layer - 1:
 
   <h3>Memory footprint</h3>
   <p>For nanochat-d20 at max seq 2048, with batch 1, in bf16:</p>
-  <div class="math-block" data-tex="\\text{K cache size} = n\\_layers \\cdot T \\cdot n\\_kv\\_head \\cdot D \\cdot 2\\,\\text{bytes}"></div>
-  <div class="math-block" data-tex="= 20 \\cdot 2048 \\cdot 5 \\cdot 128 \\cdot 2 = 52\\,\\text{MB (and the same for V)}"></div>
+  <div class="math-block" data-tex="\\text{K cache size} = n\\_layers \\cdot T \\cdot n\\_kv\\_head \\cdot D \\cdot 2\\,\\text{bytes}" data-english="Bytes in the K cache: <strong>depth × sequence-length × KV-heads × head-dim × 2</strong>. The factor of 2 is because bfloat16 uses 2 bytes per element. (The V cache has the same shape and same byte count.)"></div>
+  <div class="math-block" data-tex="= 20 \\cdot 2048 \\cdot 5 \\cdot 128 \\cdot 2 = 52\\,\\text{MB (and the same for V)}" data-english="<strong>Plugging in nanochat-d20's numbers</strong>: 20 layers, 2048-token max sequence, 5 KV heads, 128 head dim, 2 bytes per scalar. Result: 52 megabytes for K, plus 52 for V."></div>
   <p>Modest at this scale. At 70B parameters with 32k context the same arithmetic produces tens of GB — which is why production serving systems spend so much engineering effort on KV cache management.</p>
 
   <h3>Asymmetric workload</h3>
@@ -1291,6 +1297,18 @@ function show(id) {
     if (window.katex) {
       katex.render(d.dataset.tex, d, { displayMode: true, throwOnError: false });
       d.dataset.rendered = '1';
+      // Wrap with a math-fig and append the English narration if data-english is present
+      const english = d.dataset.english;
+      if (english && d.parentNode && !d.parentNode.classList.contains('math-fig')) {
+        const fig = document.createElement('div');
+        fig.className = 'math-fig';
+        const says = document.createElement('div');
+        says.className = 'math-says';
+        says.innerHTML = english;
+        d.parentNode.insertBefore(fig, d);
+        fig.appendChild(d);
+        fig.appendChild(says);
+      }
     }
   });
   active.querySelectorAll('pre.code code').forEach(b => {
