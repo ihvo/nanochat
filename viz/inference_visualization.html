@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>nanochat · transformer inference, visualized</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/python.min.js"></script>
+<style>
+:root {
+  --bg: #0a0b10;
+  --bg-2: #0f1117;
+  --surface: #15171f;
+  --surface-2: #1b1e28;
+  --border: #252836;
+  --border-2: #303345;
+  --text: #e8e9f1;
+  --muted: #8a8d9f;
+  --dim: #5d6072;
+  --gold: #f0b840;
+  --gold-soft: #c89234;
+  --q: #5aa9ff;
+  --k: #5ed492;
+  --v: #f06aa3;
+  --attn: #a855f7;
+  --gate: #fb923c;
+  --ok: #4ade80;
+  --warn: #facc15;
+  --bad: #f87171;
+  --serif: "Fraunces", Georgia, serif;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --shadow: 0 8px 24px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
+  --shadow-lg: 0 24px 48px rgba(0,0,0,0.55), 0 6px 12px rgba(0,0,0,0.35);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+::selection { background: var(--gold); color: #000; }
+
+/* Layout */
+.shell { display: grid; grid-template-columns: 1fr 240px; max-width: 1320px; margin: 0 auto; gap: 48px; padding: 0 32px; }
+@media (max-width: 1024px) { .shell { grid-template-columns: 1fr; gap: 0; padding: 0 24px; } .nav { display: none; } }
+.main { min-width: 0; }
+.nav { position: sticky; top: 24px; align-self: start; padding-top: 80px; max-height: calc(100vh - 24px); overflow-y: auto; }
+.nav::-webkit-scrollbar { width: 4px; }
+.nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.nav-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 12px; font-weight: 600; }
+.nav ol { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+.nav li { counter-increment: step; margin: 0; }
+.nav a {
+  display: block; color: var(--muted); text-decoration: none; padding: 6px 0 6px 28px;
+  font-size: 13px; position: relative; border-left: 1px solid var(--border); transition: all 0.15s;
+}
+.nav a::before {
+  content: counter(step, decimal-leading-zero);
+  position: absolute; left: 8px; top: 6px; font-size: 10px; color: var(--dim); font-family: var(--mono);
+}
+.nav a:hover, .nav a.active { color: var(--text); border-left-color: var(--gold); }
+.nav a.active::before { color: var(--gold); }
+
+/* Hero */
+.hero { padding: 96px 0 64px; border-bottom: 1px solid var(--border); margin-bottom: 64px; }
+.eyebrow { display: inline-block; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.22em; color: var(--gold); padding: 4px 10px; border: 1px solid var(--gold); border-radius: 100px; margin-bottom: 24px; }
+.hero h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(40px, 6vw, 72px); line-height: 1.05; margin: 0 0 24px; letter-spacing: -0.02em; }
+.hero h1 em { font-style: italic; color: var(--gold); }
+.hero .lede { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 0 32px; }
+.hero .lede strong { color: var(--text); font-weight: 500; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: 24px; padding-top: 32px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+.hero-meta span { display: flex; align-items: center; gap: 8px; }
+.hero-meta strong { color: var(--text); font-family: var(--mono); font-weight: 500; }
+
+/* Pipeline overview */
+.pipeline-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin: 48px 0 24px; }
+.pipe-step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; cursor: pointer; transition: all 0.15s; text-decoration: none; color: inherit; }
+.pipe-step:hover { border-color: var(--gold); background: var(--surface-2); transform: translateY(-1px); }
+.pipe-step .num { font-family: var(--mono); font-size: 11px; color: var(--gold); }
+.pipe-step .name { font-size: 13px; font-weight: 500; margin-top: 4px; color: var(--text); }
+.pipe-step .desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* Section */
+section.stage { padding: 80px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 24px; }
+section.stage:last-of-type { border-bottom: none; }
+.stage-header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+.stage-num { font-family: var(--mono); font-size: 12px; color: var(--gold); letter-spacing: 0.1em; }
+.stage-tag { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 2px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; }
+.stage h2 { font-family: var(--serif); font-weight: 500; font-size: 40px; line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.015em; }
+.stage .intro { font-size: 17px; color: var(--muted); max-width: 720px; margin-bottom: 32px; }
+.stage .intro strong { color: var(--text); font-weight: 500; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin: 24px 0; }
+.card-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.card-title .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 720px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+/* Code */
+pre.code { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; overflow-x: auto; margin: 16px 0; font-size: 13px; line-height: 1.55; }
+pre.code code { font-family: var(--mono); }
+.code-cap { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: -8px; margin-bottom: 16px; padding-left: 4px; }
+
+/* Math */
+.math-block { padding: 16px 20px; background: var(--bg-2); border-left: 2px solid var(--gold); border-radius: 4px; margin: 16px 0; overflow-x: auto; }
+.katex { font-size: 1.05em !important; }
+
+/* Stat tiles */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
+.stat { padding: 14px 16px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; }
+.stat .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.stat .value { font-family: var(--mono); font-size: 18px; color: var(--gold); margin-top: 4px; font-weight: 500; }
+.stat .sub { font-size: 11px; color: var(--dim); margin-top: 2px; font-family: var(--mono); }
+
+/* Tensor shape pills */
+.shape { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; padding: 3px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; color: var(--text); }
+.shape .lbl { color: var(--muted); }
+.shape .x { color: var(--dim); margin: 0 2px; }
+
+/* Tags */
+.tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-right: 6px; }
+.tag-q { background: rgba(90,169,255,0.15); color: var(--q); border: 1px solid rgba(90,169,255,0.3); }
+.tag-k { background: rgba(94,212,146,0.15); color: var(--k); border: 1px solid rgba(94,212,146,0.3); }
+.tag-v { background: rgba(240,106,163,0.15); color: var(--v); border: 1px solid rgba(240,106,163,0.3); }
+.tag-attn { background: rgba(168,85,247,0.15); color: var(--attn); border: 1px solid rgba(168,85,247,0.3); }
+
+/* Sliders */
+.control { display: flex; align-items: center; gap: 16px; padding: 12px 0; }
+.control label { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 120px; }
+.control input[type=range] { flex: 1; -webkit-appearance: none; appearance: none; height: 4px; background: var(--border); border-radius: 2px; outline: none; }
+.control input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; background: var(--gold); border-radius: 50%; cursor: pointer; transition: transform 0.1s; }
+.control input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.control input[type=range]::-moz-range-thumb { width: 16px; height: 16px; background: var(--gold); border-radius: 50%; cursor: pointer; border: none; }
+.control .val { font-family: var(--mono); font-size: 13px; color: var(--gold); min-width: 60px; text-align: right; }
+.control select, .control input[type=text] { font-family: var(--mono); font-size: 13px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); }
+.control input[type=text] { flex: 1; }
+
+/* SVG */
+svg { display: block; max-width: 100%; }
+svg text { font-family: var(--mono); fill: var(--text); }
+.tick text, .axis text { fill: var(--muted); font-size: 10px; }
+.tick line, .axis line, .axis path { stroke: var(--border); }
+
+/* Buttons */
+.btn { font-family: var(--mono); font-size: 12px; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.05em; }
+.btn:hover { border-color: var(--gold); color: var(--gold); }
+.btn.primary { background: var(--gold); color: #000; border-color: var(--gold); }
+.btn.primary:hover { background: var(--gold-soft); border-color: var(--gold-soft); color: #000; }
+.btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Legend */
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--muted); font-family: var(--mono); padding: 8px 0; }
+.legend .item { display: flex; align-items: center; gap: 6px; }
+.legend .sw { width: 12px; height: 12px; border-radius: 2px; }
+
+/* Pull-quote / callout */
+.callout { padding: 20px 24px; background: linear-gradient(180deg, rgba(240,184,64,0.06), rgba(240,184,64,0.02)); border: 1px solid rgba(240,184,64,0.2); border-radius: 8px; margin: 24px 0; }
+.callout .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--gold); margin-bottom: 6px; font-weight: 600; }
+.callout p { margin: 0; color: var(--text); }
+
+/* Footer */
+footer { padding: 80px 0 60px; color: var(--muted); font-size: 13px; text-align: center; border-top: 1px solid var(--border); margin-top: 64px; }
+footer a { color: var(--gold); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* Loop diagram for transformer block iteration */
+.loop-banner { background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(90,169,255,0.05)); border: 1px dashed rgba(168,85,247,0.4); border-radius: 12px; padding: 24px 28px; margin: 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.loop-banner .text { flex: 1; min-width: 240px; }
+.loop-banner h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 500; font-size: 22px; }
+.loop-banner p { margin: 0; color: var(--muted); font-size: 14px; }
+.loop-banner .badge { font-family: var(--mono); background: var(--attn); color: #fff; padding: 6px 12px; border-radius: 100px; font-size: 12px; }
+
+/* Annotated equation */
+.eq-row { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: center; padding: 16px; background: var(--bg-2); border-radius: 8px; margin: 8px 0; }
+.eq-row .lhs { font-family: var(--mono); font-size: 14px; }
+.eq-row .rhs { color: var(--muted); font-size: 13px; }
+
+/* Token chips */
+.token-chip { display: inline-block; font-family: var(--mono); font-size: 13px; padding: 4px 10px; margin: 3px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+.token-chip .id { color: var(--gold); font-size: 11px; margin-left: 6px; }
+
+a.link-out { color: var(--gold); text-decoration: none; border-bottom: 1px dashed var(--gold-soft); }
+a.link-out:hover { color: #fff; }
+</style>
+</head>
+<body>
+<div class="shell">
+<main class="main">
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <span class="eyebrow">Inference, end-to-end</span>
+  <h1>How nanochat turns tokens into <em>next tokens</em>.</h1>
+  <p class="lede">
+    A complete visual walkthrough of the forward pass implemented in
+    <strong>nanochat/gpt.py</strong> and the streaming generation loop in
+    <strong>nanochat/engine.py</strong>. Every stage uses the actual code, the
+    actual tensor shapes, and the actual quirks — GQA, sliding window attention,
+    half-split rotary, QK&#x2011;norm, value residuals, smear, backout, softcap,
+    and a Flash-Attention-3 friendly KV cache.
+  </p>
+  <div class="hero-meta">
+    <span>repo · <strong>karpathy/nanochat</strong></span>
+    <span>files · <strong>nanochat/gpt.py</strong>, <strong>nanochat/engine.py</strong></span>
+    <span>reference depth · <strong>d=20</strong></span>
+    <span>pretrained on · <strong>ClimbMix</strong></span>
+  </div>
+
+  <div class="pipeline-overview" id="pipelineOverview"></div>
+</section>
+
+<!-- Stage anchors injected here -->
+<div id="stages"></div>
+
+<footer>
+  Built for learning. All code excerpts are verbatim from
+  <a href="https://github.com/karpathy/nanochat">karpathy/nanochat</a>.
+  Numerical demos use deterministic toy values, not real model inference.
+</footer>
+
+</main>
+
+<aside class="nav">
+  <div class="nav-title">Pipeline</div>
+  <ol id="navList"></ol>
+</aside>
+</div>
+
+<script>
+// === Stage registry ===
+// Each stage is rendered in order. Mount fn receives the section element.
+const STAGES = [];
+function stage(meta) { STAGES.push(meta); }
+
+// === Hyperparameters from GPTConfig (gpt.py, lines 21-32) ===
+const CFG = {
+  sequence_len: 2048,
+  vocab_size: 32768,
+  n_layer: 20,           // depth used in the d20 reference checkpoint
+  n_head: 10,            // n_kv_head defaults equal — illustrating GQA more interesting
+  n_kv_head: 5,
+  n_embd: 1280,
+  window_pattern: "SSSL",
+  rope_base: 10000,
+  smear_gate_dim: 24,
+  ve_gate_dim: 12,
+  ve_gate_max: 3,
+  qk_scale: 1.2,
+  softcap: 15,
+  mlp_mult: 4,
+  pad_to: 64
+};
+CFG.head_dim = CFG.n_embd / CFG.n_head;            // 128
+CFG.kv_group_size = CFG.n_head / CFG.n_kv_head;    // 2 (GQA: each KV head serves 2 Q heads)
+CFG.vocab_padded = Math.ceil(CFG.vocab_size / CFG.pad_to) * CFG.pad_to;
+CFG.backout_layer = Math.floor(CFG.n_layer / 2);   // 10
+// Window sizes (gpt.py _compute_window_sizes lines 285-312):
+// long_window = sequence_len (2048), short = ceil(long/4 / 128) * 128 = ceil(4) * 128 = 512
+CFG.long_window = CFG.sequence_len;
+CFG.short_window = Math.ceil((CFG.long_window / 4) / 128) * 128; // 512
+
+// === Pipeline overview cards ===
+const PIPELINE = [
+  { num: "01", name: "Tokenize", desc: "Text → token IDs", anchor: "tokenize" },
+  { num: "02", name: "Embed", desc: "IDs → vectors (wte)", anchor: "embed" },
+  { num: "03", name: "RMSNorm", desc: "Post-embed norm", anchor: "postnorm" },
+  { num: "04", name: "Smear", desc: "Mix prev embedding", anchor: "smear" },
+  { num: "05", name: "Block ×N", desc: "Residual + x0 blend", anchor: "block" },
+  { num: "06", name: "QKV + GQA", desc: "Projections", anchor: "qkv" },
+  { num: "07", name: "Value residual", desc: "ResFormer skip", anchor: "vres" },
+  { num: "08", name: "Rotary", desc: "Position rotation", anchor: "rope" },
+  { num: "09", name: "QK-norm", desc: "Norm + 1.2 scale", anchor: "qknorm" },
+  { num: "10", name: "Attention", desc: "Flash + sliding win.", anchor: "attn" },
+  { num: "11", name: "MLP", desc: "ReLU² gate", anchor: "mlp" },
+  { num: "12", name: "Backout", desc: "Subtract mid-residual", anchor: "backout" },
+  { num: "13", name: "lm_head", desc: "Logits + softcap", anchor: "head" },
+  { num: "14", name: "Sample", desc: "Top-k + temperature", anchor: "sample" },
+  { num: "15", name: "KV cache", desc: "Prefill + decode", anchor: "kvcache" }
+];
+
+function mountOverview() {
+  const root = document.getElementById('pipelineOverview');
+  root.innerHTML = '';
+  PIPELINE.forEach(p => {
+    const a = document.createElement('a');
+    a.href = '#' + p.anchor;
+    a.className = 'pipe-step';
+    a.innerHTML = `<div class="num">${p.num}</div><div class="name">${p.name}</div><div class="desc">${p.desc}</div>`;
+    root.appendChild(a);
+  });
+}
+
+// === Helpers ===
+function el(tag, props = {}, ...children) {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => {
+    if (k === 'class') e.className = v;
+    else if (k === 'style') e.style.cssText = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'html') e.innerHTML = v;
+    else e.setAttribute(k, v);
+  });
+  children.flat().forEach(c => {
+    if (c == null) return;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+function shape(...parts) {
+  const span = el('span', { class: 'shape' });
+  parts.forEach((p, i) => {
+    if (i > 0) span.appendChild(el('span', { class: 'x' }, '×'));
+    span.appendChild(el('span', {}, String(p)));
+  });
+  return span;
+}
+function code(text, lang='python', caption='') {
+  const pre = el('pre', { class: 'code' });
+  const c = el('code', { class: 'language-' + lang }, text);
+  pre.appendChild(c);
+  if (caption) {
+    const cap = el('div', { class: 'code-cap' }, caption);
+    return el('div', {}, pre, cap);
+  }
+  return pre;
+}
+function math(tex, display=true) {
+  const d = el('div', { class: display ? 'math-block' : '' });
+  d.dataset.tex = tex;
+  d.dataset.display = display;
+  return d;
+}
+function tex(d) {
+  if (window.katex) {
+    katex.render(d.dataset.tex, d, { displayMode: d.dataset.display === 'true', throwOnError: false });
+  }
+}
+function statTile(label, value, sub='') {
+  return el('div', { class: 'stat' },
+    el('div', { class: 'label' }, label),
+    el('div', { class: 'value' }, String(value)),
+    sub ? el('div', { class: 'sub' }, sub) : null
+  );
+}
+// Deterministic toy RNG so demos are reproducible
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function rand_n(seed, n, scale=1) {
+  const r = mulberry32(seed);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    // Box-Muller
+    const u1 = Math.max(r(), 1e-9), u2 = r();
+    out.push(Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * scale);
+  }
+  return out;
+}
+function softmax(arr) {
+  const m = Math.max(...arr);
+  const ex = arr.map(x => Math.exp(x - m));
+  const s = ex.reduce((a, b) => a + b, 0);
+  return ex.map(x => x / s);
+}
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+function rmsNorm(v, eps=1e-5) {
+  const ms = v.reduce((s, x) => s + x*x, 0) / v.length;
+  const r = 1 / Math.sqrt(ms + eps);
+  return v.map(x => x * r);
+}
+
+// ===========================================================================
+// STAGE 0: Hyperparameters card (rendered above stage 1)
+// ===========================================================================
+stage({
+  id: "config",
+  num: "00",
+  tag: "GPTConfig · gpt.py:21",
+  title: "Model dimensions, in one card",
+  intro: "Every shape on this page derives from these constants. We use the d20 reference: 20 transformer blocks, 10 query heads, 5 KV heads (GQA, group size 2), embedding 1280, head_dim 128, sliding window pattern \u201CSSSL\u201D.",
+  mount(root) {
+    const stats = el('div', { class: 'stats' },
+      statTile('n_layer', CFG.n_layer, 'blocks stacked'),
+      statTile('n_embd', CFG.n_embd, `d_model`),
+      statTile('n_head', CFG.n_head, 'query heads'),
+      statTile('n_kv_head', CFG.n_kv_head, `GQA group ${CFG.kv_group_size}`),
+      statTile('head_dim', CFG.head_dim, 'per head'),
+      statTile('seq_len', CFG.sequence_len, 'tokens'),
+      statTile('vocab', CFG.vocab_padded, `padded to ${CFG.pad_to}`),
+      statTile('windows', `${CFG.short_window} | ${CFG.long_window}`, 'short | long'),
+    );
+    root.appendChild(stats);
+
+    root.appendChild(code(`@dataclass
+class GPTConfig:
+    sequence_len: int = 1024
+    vocab_size: int = 50304
+    n_layer: int = 12
+    n_head: int = 6
+    n_kv_head: int = 6
+    n_embd: int = 768
+    # window pattern config for SWA, e.g. "L", "SL", "SSL", etc.
+    # The pattern is repeated to cover all layers, except the last layer which is always L.
+    window_pattern: str = "L"`, 'python', 'nanochat/gpt.py · GPTConfig (lines 21-32)'));
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'Why these defaults'),
+      el('p', {}, `nanochat lets you scale by setting just depth d — width, heads, learning rate all scale together. depth=20 is the published baseline checkpoint; depth=26/32 ship as larger variants. We use d=20 throughout this walkthrough so the GQA group size (n_head/n_kv_head = 2) shows up in every attention diagram.`)
+    ));
+  }
+});
+
+// ===========================================================================
+// STAGE 1: Tokenize
+// ===========================================================================
+stage({
+  id: "tokenize",
+  num: "01",
+  tag: "tokenizer.py · BPE",
+  title: "Text becomes integers",
+  intro: "Inference starts at the BPE tokenizer (Rust-backed in production, custom-trained on the FineWeb-style corpus). The result is a flat list of integer ids that index into the embedding table.",
+  mount(root) {
+    root.appendChild(el('div', { class: 'card' },
+      el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Try it · toy tokenizer'),
+      el('div', { class: 'control' },
+        el('label', {}, 'input text'),
+        el('input', { type: 'text', id: 'tok-input', value: 'The quick brown fox' })
+      ),
+      el('div', { id: 'tok-out', style: 'margin-top: 12px; padding: 16px; background: var(--bg-2); border-radius: 8px; min-height: 60px;' }),
+      el('p', { style: 'font-size:13px; color:var(--muted); margin-top:12px;' },
+        'Note: this is a stand-in word/subword splitter for illustration. The real tokenizer is BPE trained from scratch (see ',
+        el('code', { style: 'color:var(--gold); font-family:var(--mono);' }, 'nanochat/tokenizer.py'),
+        '), with a 32,768-token vocabulary padded to a multiple of 64.')
+    ));
+
+    function tokenize(text) {
+      const toks = [];
+      const r = /\s+|[A-Za-z]+|\d+|[^\s\w]/g;
+      let m;
+      while ((m = r.exec(text)) !== null) {
+        const s = m[0];
+        if (/^\s+$/.test(s)) continue;
+        // Pseudo-merge for short words
+        if (s.length > 6 && /^[A-Za-z]+$/.test(s)) {
+          toks.push(s.slice(0, Math.floor(s.length/2)));
+          toks.push(s.slice(Math.floor(s.length/2)));
+        } else {
+          toks.push(s);
+        }
+      }
+      return toks;
+    }
+    function hashId(s) {
+      let h = 5381;
+      for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) & 0xffff;
+      return h % CFG.vocab_padded;
+    }
+    function render() {
+      const txt = document.getElementById('tok-input').value;
+      const out = document.getElementById('tok-out');
+      out.innerHTML = '';
+      const tokens = tokenize(txt);
+      tokens.forEach(t => {
+        const chip = el('span', { class: 'token-chip' }, t, el('span', { class: 'id' }, hashId(t).toString()));
+        out.appendChild(chip);
+      });
+      out.appendChild(el('div', { style: 'margin-top:12px; font-family:var(--mono); font-size:12px; color:var(--muted);' },
+        `→ ${tokens.length} tokens · shape: `, shape('B=1', `T=${tokens.length}`)));
+    }
+    setTimeout(() => { document.getElementById('tok-input').addEventListener('input', render); render(); }, 0);
+  }
+});
+
+// ===========================================================================
+// STAGE 2: Token embedding
+// ===========================================================================
+stage({
+  id: "embed",
+  num: "02",
+  tag: "GPT.forward · gpt.py:425",
+  title: "Embedding: a lookup table",
+  intro: "Each token id is a row index into the weight matrix wte ∈ ℝ^(V × d). For d=20 that's a 32,768 × 1280 table. There is exactly one nn.Embedding, no learned positional embedding (rotary handles position later).",
+  mount(root) {
+    root.appendChild(el('div', { class: 'grid-2' },
+      el('div', {},
+        math(`\\text{wte} \\in \\mathbb{R}^{V \\times d}, \\quad \\text{wte}[\\text{idx}] = X \\in \\mathbb{R}^{B \\times T \\times d}`),
+        el('p', { style: 'color:var(--muted); font-size:14px;' },
+          'Tokens at this stage are pure indexing — no math. The cost is memory: V·d ≈ ',
+          el('span', { style: 'color:var(--gold); font-family:var(--mono);' }, (CFG.vocab_padded * CFG.n_embd / 1e6).toFixed(1) + 'M params'),
+          ', stored in COMPUTE_DTYPE (bfloat16 on Hopper).')
+      ),
+      el('div', {},
+        el('div', { class: 'stats' },
+          statTile('vocab', CFG.vocab_padded),
+          statTile('d_model', CFG.n_embd),
+          statTile('output shape', `${1}×T×${CFG.n_embd}`, '(B, T, d)')
+        )
+      )
+    ));
+
+    root.appendChild(code(`# nanochat/gpt.py
+# Step 1: embed the tokens
+x = self.transformer.wte(idx) # (B, T, n_embd)
+# Apply post-embedding RMSNorm without learnable params
+x = F.rms_norm(x, (x.size(-1),))`, 'python', 'gpt.py · forward() lines 425-428'));
+
+    // SVG: visualize embedding lookup
+    const sv = el('div', { class: 'card' });
+    sv.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Visual · 3 tokens → 3 rows of wte'));
+    sv.appendChild(buildEmbedDiagram());
+    root.appendChild(sv);
+  }
+});
+
+function buildEmbedDiagram() {
+  const w = 720, h = 320;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`).attr('width', '100%');
+  const tokens = [{ str: '"The"', id: 1437 }, { str: '"quick"', id: 8231 }, { str: '"fox"', id: 21044 }];
+  const tableX = 360, tableY = 30, tableW = 280, tableH = 240;
+  const rows = 14, rowH = tableH / rows;
+
+  // Table
+  svg.append('rect').attr('x', tableX).attr('y', tableY).attr('width', tableW).attr('height', tableH)
+    .attr('fill', '#15171f').attr('stroke', '#252836').attr('rx', 6);
+  for (let i = 1; i < rows; i++) {
+    svg.append('line').attr('x1', tableX).attr('x2', tableX + tableW)
+      .attr('y1', tableY + i * rowH).attr('y2', tableY + i * rowH).attr('stroke', '#252836');
+  }
+  svg.append('text').attr('x', tableX + tableW/2).attr('y', tableY - 8).attr('text-anchor', 'middle')
+    .attr('font-size', 11).attr('fill', '#8a8d9f').text('wte (32,768 × 1280)');
+
+  // Sample row indices to highlight
+  const highlights = [3, 7, 11];
+  const colors = ['#5aa9ff', '#5ed492', '#f06aa3'];
+
+  // Tokens column
+  tokens.forEach((t, i) => {
+    const y = 60 + i * 80;
+    svg.append('rect').attr('x', 20).attr('y', y).attr('width', 130).attr('height', 56)
+      .attr('fill', '#1b1e28').attr('stroke', colors[i]).attr('rx', 6);
+    svg.append('text').attr('x', 30).attr('y', y + 22).attr('fill', '#e8e9f1').attr('font-size', 14).text(t.str);
+    svg.append('text').attr('x', 30).attr('y', y + 42).attr('fill', '#8a8d9f').attr('font-size', 11).text('id = ' + t.id);
+
+    // Arrow to table row
+    const rowY = tableY + highlights[i] * rowH + rowH/2;
+    svg.append('path')
+      .attr('d', `M 150 ${y + 28} C 230 ${y + 28}, 280 ${rowY}, ${tableX} ${rowY}`)
+      .attr('fill', 'none').attr('stroke', colors[i]).attr('stroke-width', 1.5).attr('opacity', 0.7);
+
+    // Highlight row
+    svg.append('rect').attr('x', tableX + 2).attr('y', tableY + highlights[i] * rowH + 1)
+      .attr('width', tableW - 4).attr('height', rowH - 2).attr('fill', colors[i]).attr('opacity', 0.15);
+
+    // Mini values in row
+    const seed = 17 + i * 31;
+    const vals = rand_n(seed, 8, 0.5);
+    vals.forEach((v, k) => {
+      svg.append('text').attr('x', tableX + 10 + k * 32).attr('y', tableY + highlights[i] * rowH + rowH/2 + 4)
+        .attr('fill', colors[i]).attr('font-size', 10).text(v.toFixed(2));
+    });
+  });
+
+  // Output column
+  svg.append('text').attr('x', tableX + tableW + 8).attr('y', 60).attr('fill', '#8a8d9f').attr('font-size', 11).text('→ X');
+  svg.append('text').attr('x', tableX + tableW + 8).attr('y', 76).attr('fill', '#8a8d9f').attr('font-size', 10).text('(1, 3, 1280)');
+
+  return svg.node();
+}
+
+// ===========================================================================
+// STAGE 3: Post-embed RMSNorm
+// ===========================================================================
+stage({
+  id: "postnorm",
+  num: "03",
+  tag: "F.rms_norm · gpt.py:428",
+  title: "Normalize: a unit-RMS hyper-sphere",
+  intro: "Before anything else, the per-token embeddings are RMS-normalized with no learnable gain. This puts every token's hidden vector on the same scale — a clean starting state for the residual stream.",
+  mount(root) {
+    const grid = el('div', { class: 'grid-2' });
+    grid.appendChild(el('div', {},
+      math(`\\text{RMSNorm}(x) = \\frac{x}{\\sqrt{\\frac{1}{d}\\sum_i x_i^2 + \\epsilon}}`),
+      el('p', { style: 'color:var(--muted); font-size:14px;' },
+        "Note: no learnable scale or bias. This is intentional — nanochat saves params and lets the residual stream find its own scale via per-layer x0 / residual lambdas (next stage)."),
+      code(`x = F.rms_norm(x, (x.size(-1),))`, 'python', 'gpt.py · line 428')
+    ));
+
+    // Interactive viz
+    const right = el('div', {});
+    right.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Before / After'));
+    const slider = el('input', { type: 'range', min: '0.1', max: '5', step: '0.1', value: '2.3', id: 'norm-scale' });
+    const val = el('div', { class: 'val', id: 'norm-val' }, '2.3');
+    right.appendChild(el('div', { class: 'control' },
+      el('label', {}, 'pre-norm scale'), slider, val
+    ));
+    const svgWrap = el('div', { id: 'norm-svg' });
+    right.appendChild(svgWrap);
+    grid.appendChild(right);
+    root.appendChild(grid);
+
+    setTimeout(() => {
+      const draw = () => {
+        const scale = +document.getElementById('norm-scale').value;
+        document.getElementById('norm-val').textContent = scale.toFixed(2);
+        renderRMSNorm(scale);
+      };
+      slider.addEventListener('input', draw);
+      draw();
+    }, 0);
+  }
+});
+
+function renderRMSNorm(scale) {
+  const wrap = document.getElementById('norm-svg');
+  wrap.innerHTML = '';
+  const w = 400, h = 240;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+
+  const seed = 1337;
+  const base = rand_n(seed, 16, 1);
+  const pre = base.map(x => x * scale);
+  const post = rmsNorm(pre);
+
+  const barW = 12, gap = 6, startX = 30, midY = 110;
+
+  // Pre bars
+  svg.append('text').attr('x', 10).attr('y', 16).attr('fill', '#8a8d9f').attr('font-size', 11).text('input');
+  pre.forEach((v, i) => {
+    const x = startX + i * (barW + gap);
+    const bh = Math.abs(v) * 18;
+    svg.append('rect').attr('x', x).attr('y', v > 0 ? midY - bh : midY).attr('width', barW).attr('height', bh)
+      .attr('fill', '#5aa9ff').attr('opacity', 0.7);
+  });
+  svg.append('line').attr('x1', 25).attr('x2', w-10).attr('y1', midY).attr('y2', midY).attr('stroke', '#252836');
+
+  const midY2 = 200;
+  svg.append('text').attr('x', 10).attr('y', 145).attr('fill', '#8a8d9f').attr('font-size', 11).text('output (RMS=1)');
+  post.forEach((v, i) => {
+    const x = startX + i * (barW + gap);
+    const bh = Math.abs(v) * 18;
+    svg.append('rect').attr('x', x).attr('y', v > 0 ? midY2 - bh : midY2).attr('width', barW).attr('height', bh)
+      .attr('fill', '#f0b840').attr('opacity', 0.85);
+  });
+  svg.append('line').attr('x1', 25).attr('x2', w-10).attr('y1', midY2).attr('y2', midY2).attr('stroke', '#252836');
+
+  const rms_in = Math.sqrt(pre.reduce((s,x)=>s+x*x,0) / pre.length);
+  const rms_out = Math.sqrt(post.reduce((s,x)=>s+x*x,0) / post.length);
+  svg.append('text').attr('x', w-10).attr('y', 16).attr('fill', '#5aa9ff').attr('font-size', 10).attr('text-anchor', 'end')
+    .text('rms = ' + rms_in.toFixed(3));
+  svg.append('text').attr('x', w-10).attr('y', 145).attr('fill', '#f0b840').attr('font-size', 10).attr('text-anchor', 'end')
+    .text('rms = ' + rms_out.toFixed(3));
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 4: Smear (mix previous token's embedding)
+// ===========================================================================
+stage({
+  id: "smear",
+  num: "04",
+  tag: "GPT.forward · gpt.py:430-444",
+  title: "Smear: a learned gate to mix in the previous token",
+  intro: "A small clever trick. The model learns a per-token gate (24-dim slice → scalar via sigmoid) that mixes the previous token's normalized embedding into the current one. During KV-cache decoding the previous embedding lives on the cache.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — forward()
+# Calculate the gate for the smear: it goes 0 to 1, sigmoid(small first slice of x)
+smear_gate = torch.sigmoid(self.transformer.smear_gate(x[..., :24])) # (B, T, 1)
+if kv_cache is None:
+    # During training, calculate the smear directly
+    prev_x = F.pad(x[:, :-1, :], (0, 0, 1, 0)) # (B, T, n_embd) shifted by 1
+else:
+    # During inference, we need to pull from the kv_cache.prev_embedding
+    prev_x = kv_cache.prev_embedding.expand_as(x) # (B, T, n_embd)
+    # Update the kv_cache.prev_embedding to the current last embedding
+    kv_cache.prev_embedding = x[:, -1:, :].clone() # (B, 1, n_embd)
+# Smear is a convex combination of current and previous embeddings, gated.
+x = x * (1 - smear_gate) + prev_x * smear_gate`, 'python', 'gpt.py · lines 430-444'));
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'Why this exists'),
+      el('p', {}, `A vanilla attention layer can only see the previous token through Q·K. Smear gives every position direct, learned access to its immediate left neighbor at near-zero cost (one tiny linear + sigmoid). The gate is a function of the first 24 channels of x — a compressed view of "what kind of token am I?".`)
+    ));
+
+    // Interactive smear demo
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Try it · gate slider'));
+    const slider = el('input', { type: 'range', min: '0', max: '1', step: '0.01', value: '0.3', id: 'smear-g' });
+    const val = el('div', { class: 'val', id: 'smear-val' }, '0.30');
+    card.appendChild(el('div', { class: 'control' },
+      el('label', {}, 'smear gate σ(·)'), slider, val
+    ));
+    const wrap = el('div', { id: 'smear-svg' });
+    card.appendChild(wrap);
+    root.appendChild(card);
+
+    setTimeout(() => {
+      const draw = () => {
+        const g = +document.getElementById('smear-g').value;
+        document.getElementById('smear-val').textContent = g.toFixed(2);
+        renderSmear(g);
+      };
+      slider.addEventListener('input', draw);
+      draw();
+    }, 0);
+  }
+});
+
+function renderSmear(g) {
+  const wrap = document.getElementById('smear-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 200;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+
+  const dim = 24;
+  const cur = rand_n(7, dim, 1);
+  const prev = rand_n(13, dim, 1);
+  const mix = cur.map((c, i) => c * (1 - g) + prev[i] * g);
+
+  const cellW = (w - 80) / dim;
+  const startY = 30, rowH = 36, gap = 8;
+  const labels = ['x  (current)', 'prev_x', 'mix = x·(1-g) + prev·g'];
+  const data = [cur, prev, mix];
+  const colors = ['#5aa9ff', '#a855f7', '#f0b840'];
+
+  labels.forEach((lbl, ri) => {
+    const y = startY + ri * (rowH + gap);
+    svg.append('text').attr('x', 8).attr('y', y + rowH/2 + 4).attr('fill', '#8a8d9f').attr('font-size', 11).text(lbl);
+    data[ri].forEach((v, i) => {
+      const x = 80 + i * cellW;
+      const intensity = Math.max(0, Math.min(1, (Math.abs(v) / 2)));
+      svg.append('rect').attr('x', x + 1).attr('y', y).attr('width', cellW - 2).attr('height', rowH)
+        .attr('fill', colors[ri]).attr('opacity', 0.15 + 0.65 * intensity);
+      svg.append('text').attr('x', x + cellW/2).attr('y', y + rowH/2 + 3).attr('text-anchor', 'middle')
+        .attr('fill', '#fff').attr('font-size', 9).attr('opacity', 0.85).text(v.toFixed(1));
+    });
+  });
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 5: Block loop intro (x0 + residual lambdas)
+// ===========================================================================
+stage({
+  id: "block",
+  num: "05",
+  tag: "GPT.forward · gpt.py:455-471",
+  title: "The transformer block, looped 20 times",
+  intro: "Each block has the usual attn → MLP residual pattern, but with a twist: a per-layer learnable blend with x0 (the original normalized embedding). Early layers can lean heavily on x0; later layers fade it out.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — forward()
+# Save x as the initial input embedding for x0 residual stream blending
+x0 = x
+
+# Forward through the n_layer blocks of the Transformer
+x_backout = None
+for layer_idx in range(self.config.n_layer):
+    # Blend in the x0 residual stream, init as a strong residual + small x0
+    x = self.resid_lambdas[layer_idx] * x + self.x0_lambdas[layer_idx] * x0
+    # Forward through the block: attention then MLP
+    ve = ve_list[layer_idx] # value embedding for this layer or None
+    x = self.transformer.h[layer_idx](x, ...)
+    # Note also "backout": save x at the start of the second half of the model
+    if layer_idx == self.backout_layer:
+        x_backout = x`, 'python', 'gpt.py · lines 455-471 (abridged)'));
+
+    // x0 / resid lambda plot
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Per-layer scalars (initial values)'));
+    card.appendChild(el('div', { id: 'lambdas-svg' }));
+    root.appendChild(card);
+    setTimeout(() => renderLambdas(), 0);
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'How they\u2019re initialized'),
+      el('p', {}, `From gpt.py: resid_lambdas linearly decay from 1.15 → 1.05 over n_layer; x0_lambdas decay from 0.20 → 0.05. They are nn.Parameter, so SGD reshapes them. Intuition: early in the network you still want the raw embedding to leak in; deep in the stack the residual is rich enough on its own.`)
+    ));
+
+    root.appendChild(el('div', { class: 'loop-banner' },
+      el('div', { class: 'text' },
+        el('h3', {}, `Block ${0} … ${CFG.n_layer - 1}`),
+        el('p', {}, `Stages 6 through 11 below all happen inside this loop, ${CFG.n_layer} times in a row.`)
+      ),
+      el('div', { class: 'badge' }, `n_layer = ${CFG.n_layer}`)
+    ));
+  }
+});
+
+function renderLambdas() {
+  const wrap = document.getElementById('lambdas-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 220;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+
+  const N = CFG.n_layer;
+  const resid = d3.range(N).map(i => 1.15 + (1.05 - 1.15) * i / (N - 1));
+  const x0lam = d3.range(N).map(i => 0.20 + (0.05 - 0.20) * i / (N - 1));
+
+  const m = { l: 50, r: 100, t: 20, b: 30 };
+  const xs = d3.scaleLinear().domain([0, N-1]).range([m.l, w - m.r]);
+  const ys = d3.scaleLinear().domain([0, 1.3]).range([h - m.b, m.t]);
+
+  // grid
+  ys.ticks(5).forEach(t => {
+    svg.append('line').attr('x1', m.l).attr('x2', w - m.r).attr('y1', ys(t)).attr('y2', ys(t)).attr('stroke', '#252836');
+    svg.append('text').attr('x', m.l - 8).attr('y', ys(t) + 3).attr('fill', '#8a8d9f').attr('font-size', 10).attr('text-anchor', 'end').text(t.toFixed(2));
+  });
+  d3.range(0, N, 2).forEach(t => {
+    svg.append('text').attr('x', xs(t)).attr('y', h - 8).attr('fill', '#8a8d9f').attr('font-size', 10).attr('text-anchor', 'middle').text(t);
+  });
+
+  // resid line + points
+  const line = d3.line().x((_, i) => xs(i)).y(d => ys(d));
+  svg.append('path').attr('d', line(resid)).attr('fill', 'none').attr('stroke', '#5aa9ff').attr('stroke-width', 2);
+  resid.forEach((v, i) => svg.append('circle').attr('cx', xs(i)).attr('cy', ys(v)).attr('r', 3).attr('fill', '#5aa9ff'));
+  svg.append('text').attr('x', w - m.r + 8).attr('y', ys(resid[N-1]) + 4).attr('fill', '#5aa9ff').attr('font-size', 11).text('resid_λ');
+
+  svg.append('path').attr('d', line(x0lam)).attr('fill', 'none').attr('stroke', '#f0b840').attr('stroke-width', 2);
+  x0lam.forEach((v, i) => svg.append('circle').attr('cx', xs(i)).attr('cy', ys(v)).attr('r', 3).attr('fill', '#f0b840'));
+  svg.append('text').attr('x', w - m.r + 8).attr('y', ys(x0lam[N-1]) + 4).attr('fill', '#f0b840').attr('font-size', 11).text('x0_λ');
+
+  svg.append('text').attr('x', m.l).attr('y', 14).attr('fill', '#8a8d9f').attr('font-size', 10).text('layer →');
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 6: QKV projection with GQA
+// ===========================================================================
+stage({
+  id: "qkv",
+  num: "06",
+  tag: "CausalSelfAttention · gpt.py:65-126",
+  title: "Q, K, V projections — grouped",
+  intro: "Three linear projections turn the residual stream into queries, keys and values. nanochat uses Grouped-Query Attention: 10 query heads share just 5 KV heads. Cuts the KV cache in half with minimal quality loss.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — CausalSelfAttention.__init__
+self.c_q = Linear(config.n_embd, config.n_head    * self.head_dim, bias=False)
+self.c_k = Linear(config.n_embd, config.n_kv_head * self.head_dim, bias=False)
+self.c_v = Linear(config.n_embd, config.n_kv_head * self.head_dim, bias=False)`, 'python', 'gpt.py · CausalSelfAttention init (lines 77-79)'));
+
+    root.appendChild(code(`# nanochat/gpt.py — CausalSelfAttention.forward
+B, T, C = x.size()
+q = self.c_q(x).view(B, T, self.n_head,    self.head_dim)
+k = self.c_k(x).view(B, T, self.n_kv_head, self.head_dim)
+v = self.c_v(x).view(B, T, self.n_kv_head, self.head_dim)`, 'python', 'gpt.py · forward — shapes are (B, T, H, D) for FA3'));
+
+    root.appendChild(el('div', { class: 'grid-3' },
+      el('div', { class: 'card' },
+        el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Q'),
+        el('div', {}, el('span', { class: 'tag tag-q' }, 'query')),
+        el('div', { style: 'margin-top:12px' }, shape('B', 'T', `H=${CFG.n_head}`, `D=${CFG.head_dim}`)),
+        el('p', { style: 'color:var(--muted); font-size:13px; margin-top:8px;' }, `Full ${CFG.n_head} heads — every query is independent.`)
+      ),
+      el('div', { class: 'card' },
+        el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'K'),
+        el('div', {}, el('span', { class: 'tag tag-k' }, 'key')),
+        el('div', { style: 'margin-top:12px' }, shape('B', 'T', `H_kv=${CFG.n_kv_head}`, `D=${CFG.head_dim}`)),
+        el('p', { style: 'color:var(--muted); font-size:13px; margin-top:8px;' }, `Only ${CFG.n_kv_head} KV heads. Each one is shared by ${CFG.kv_group_size} queries.`)
+      ),
+      el('div', { class: 'card' },
+        el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'V'),
+        el('div', {}, el('span', { class: 'tag tag-v' }, 'value')),
+        el('div', { style: 'margin-top:12px' }, shape('B', 'T', `H_kv=${CFG.n_kv_head}`, `D=${CFG.head_dim}`)),
+        el('p', { style: 'color:var(--muted); font-size:13px; margin-top:8px;' }, `Same shape as K. FA handles the broadcast.`)
+      )
+    ));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'GQA routing'));
+    card.appendChild(el('p', { style:'color:var(--muted); font-size:14px; margin-top:0;' },
+      `Every group of ${CFG.kv_group_size} query heads is paired with one KV head. Memory savings scale linearly with the group size.`));
+    card.appendChild(el('div', { id: 'gqa-svg' }));
+    root.appendChild(card);
+    setTimeout(() => renderGQA(), 0);
+  }
+});
+
+function renderGQA() {
+  const wrap = document.getElementById('gqa-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 280;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  const nQ = CFG.n_head, nKV = CFG.n_kv_head, grp = CFG.kv_group_size;
+  const qBoxW = (w - 100) / nQ;
+  const kvBoxW = (w - 100) / nKV;
+  const qY = 30, kvY = 200, boxH = 50;
+
+  // Q heads
+  for (let i = 0; i < nQ; i++) {
+    const x = 50 + i * qBoxW;
+    svg.append('rect').attr('x', x + 4).attr('y', qY).attr('width', qBoxW - 8).attr('height', boxH)
+      .attr('rx', 6).attr('fill', '#1b1e28').attr('stroke', '#5aa9ff');
+    svg.append('text').attr('x', x + qBoxW/2).attr('y', qY + 28).attr('text-anchor', 'middle')
+      .attr('fill', '#5aa9ff').attr('font-size', 12).text('Q' + i);
+  }
+  svg.append('text').attr('x', 10).attr('y', qY + 30).attr('fill', '#8a8d9f').attr('font-size', 11).text('query heads');
+
+  // KV heads
+  for (let j = 0; j < nKV; j++) {
+    const x = 50 + j * kvBoxW;
+    svg.append('rect').attr('x', x + 4).attr('y', kvY).attr('width', kvBoxW - 8).attr('height', boxH)
+      .attr('rx', 6).attr('fill', '#1b1e28').attr('stroke', '#5ed492');
+    svg.append('text').attr('x', x + kvBoxW/2).attr('y', kvY + 22).attr('text-anchor', 'middle')
+      .attr('fill', '#5ed492').attr('font-size', 12).text('K' + j);
+    svg.append('text').attr('x', x + kvBoxW/2).attr('y', kvY + 38).attr('text-anchor', 'middle')
+      .attr('fill', '#f06aa3').attr('font-size', 11).text('V' + j);
+  }
+  svg.append('text').attr('x', 10).attr('y', kvY + 30).attr('fill', '#8a8d9f').attr('font-size', 11).text('KV heads');
+
+  // Arrows Q → KV
+  for (let i = 0; i < nQ; i++) {
+    const j = Math.floor(i / grp);
+    const x1 = 50 + i * qBoxW + qBoxW/2;
+    const x2 = 50 + j * kvBoxW + kvBoxW/2;
+    svg.append('path').attr('d', `M ${x1} ${qY + boxH} C ${x1} ${(qY + boxH + kvY)/2}, ${x2} ${(qY + boxH + kvY)/2}, ${x2} ${kvY}`)
+      .attr('fill', 'none').attr('stroke', '#a855f7').attr('stroke-width', 1.2).attr('opacity', 0.6);
+  }
+
+  svg.append('text').attr('x', w - 10).attr('y', 18).attr('text-anchor', 'end').attr('fill', '#8a8d9f').attr('font-size', 11)
+    .text(`${nQ} Q heads · ${nKV} KV heads · group size ${grp}`);
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 7: Value residual (ResFormer)
+// ===========================================================================
+stage({
+  id: "vres",
+  num: "07",
+  tag: "CausalSelfAttention.forward · gpt.py:97-105",
+  title: "Value residual — a skip connection on V",
+  intro: "On selected layers, the value tensor gets a gated additive contribution from an earlier layer's value (\u201Cve\u201D — value embedding). This is the ResFormer idea: build a residual stream on values, not just on the main hidden state.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — CausalSelfAttention.forward
+# Value residual: add to v
+if ve is not None:
+    # The "shortcut connection" within an attention block
+    ve_gate = 3 * torch.sigmoid(self.ve_gate(x[..., :12])) # (B, T, 1)
+    v = v + ve_gate.unsqueeze(-1) * ve`, 'python', 'gpt.py · lines 97-101'));
+
+    root.appendChild(code(`# nanochat/gpt.py — helper deciding which layers get a value residual
+def has_ve(layer_idx, n_layer):
+    # The first layer always has value embeddings; then alternate;
+    # the last layer always has them too.
+    if layer_idx == 0 or layer_idx == n_layer - 1:
+        return True
+    return layer_idx % 2 == 1`, 'python', 'gpt.py · has_ve helper (illustrative wording)'));
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'Gate range'),
+      el('p', {}, `Note the 3× multiplier: the gate is 3·σ(·), so it ranges in (0, 3) rather than the usual (0, 1). The model can therefore amplify the value residual, not just attenuate it.`)
+    ));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Which layers carry a ve?'));
+    card.appendChild(el('div', { id: 've-svg' }));
+    root.appendChild(card);
+    setTimeout(() => renderVe(), 0);
+  }
+});
+
+function renderVe() {
+  const wrap = document.getElementById('ve-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 110;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  const N = CFG.n_layer;
+  const cellW = (w - 80) / N;
+  for (let i = 0; i < N; i++) {
+    const hasVe = (i === 0) || (i === N - 1) || (i % 2 === 1);
+    const x = 50 + i * cellW;
+    svg.append('rect').attr('x', x + 2).attr('y', 30).attr('width', cellW - 4).attr('height', 50)
+      .attr('rx', 6).attr('fill', hasVe ? '#f06aa3' : '#1b1e28').attr('opacity', hasVe ? 0.8 : 1)
+      .attr('stroke', hasVe ? '#f06aa3' : '#252836');
+    svg.append('text').attr('x', x + cellW/2).attr('y', 60).attr('text-anchor', 'middle')
+      .attr('fill', hasVe ? '#fff' : '#5d6072').attr('font-size', 11).text(i);
+  }
+  svg.append('text').attr('x', 8).attr('y', 60).attr('fill', '#8a8d9f').attr('font-size', 11).text('layer');
+  svg.append('text').attr('x', 8).attr('y', 18).attr('fill', '#f06aa3').attr('font-size', 10).text('■ has value residual');
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 8: Rotary embeddings
+// ===========================================================================
+stage({
+  id: "rope",
+  num: "08",
+  tag: "rotary helpers · gpt.py:43-62, 268-283",
+  title: "Rotary position embeddings (half-split)",
+  intro: "Position information is injected by rotating Q and K vectors in 2D planes. Unlike the interleaved RoPE, nanochat splits the head dimension in half and pairs (x[i], x[i+D/2]) — easier for vectorization and identical in expressive power.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — half-split rotary apply
+def apply_rotary_emb(x, cos, sin):
+    d = x.size(-1) // 2
+    x1 = x[..., :d]
+    x2 = x[..., d:]
+    y1 = x1 * cos + x2 * sin
+    y2 = -x1 * sin + x2 * cos
+    return torch.cat([y1, y2], dim=-1)`, 'python', 'gpt.py · lines 43-49 (half-split rotation)'));
+
+    root.appendChild(math(`\\theta_k = \\text{base}^{-2k/D}, \\quad \\text{base}=10000, \\quad k=0..D/2-1`));
+    root.appendChild(math(`\\begin{bmatrix} y_1 \\\\ y_2 \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix} \\begin{bmatrix} x_1 \\\\ x_2 \\end{bmatrix}`));
+
+    root.appendChild(code(`# nanochat/gpt.py — precompute rotary tables
+def _precompute_rotary_embeddings(self):
+    D = self.config.n_embd // self.config.n_head # head_dim
+    inv_freq = 1.0 / (10000 ** (torch.arange(0, D, 2).float() / D))
+    # We pad the seq_len by 10x to leave headroom for sliding/prefill
+    t = torch.arange(self.config.sequence_len * 10).float()
+    freqs = torch.einsum("i,j->ij", t, inv_freq)
+    self.register_buffer("cos", freqs.cos()[None, :, None, :], persistent=False)
+    self.register_buffer("sin", freqs.sin()[None, :, None, :], persistent=False)`, 'python', 'gpt.py · _precompute_rotary_embeddings (lines 268-283, paraphrased)'));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Try it · slide token position'));
+    const slider = el('input', { type: 'range', min: '0', max: '64', step: '1', value: '7', id: 'rope-pos' });
+    const val = el('div', { class: 'val', id: 'rope-val' }, '7');
+    card.appendChild(el('div', { class: 'control' },
+      el('label', {}, 'token position t'), slider, val
+    ));
+    card.appendChild(el('div', { id: 'rope-svg' }));
+    root.appendChild(card);
+
+    setTimeout(() => {
+      const draw = () => {
+        const t = +document.getElementById('rope-pos').value;
+        document.getElementById('rope-val').textContent = t;
+        renderRope(t);
+      };
+      slider.addEventListener('input', draw);
+      draw();
+    }, 0);
+  }
+});
+
+function renderRope(t) {
+  const wrap = document.getElementById('rope-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 280;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  // Show 4 frequency bands: k = 0, 8, 24, 56 (out of 64 pairs in head_dim=128)
+  const D = 128;
+  const bands = [0, 8, 24, 56];
+  const radius = 50;
+  const startX = 80;
+  bands.forEach((k, i) => {
+    const cx = startX + i * 160, cy = 140;
+    const theta = t * Math.pow(10000, -2 * k / D);
+    // circle
+    svg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', radius).attr('fill', 'none').attr('stroke', '#252836');
+    svg.append('line').attr('x1', cx - radius).attr('x2', cx + radius).attr('y1', cy).attr('y2', cy).attr('stroke', '#15171f');
+    svg.append('line').attr('x1', cx).attr('x2', cx).attr('y1', cy - radius).attr('y2', cy + radius).attr('stroke', '#15171f');
+    // original arrow (at θ=0)
+    svg.append('line').attr('x1', cx).attr('y1', cy).attr('x2', cx + radius).attr('y2', cy)
+      .attr('stroke', '#3a3d4d').attr('stroke-width', 1.5).attr('opacity', 0.6);
+    // rotated arrow
+    const ex = cx + radius * Math.cos(theta);
+    const ey = cy - radius * Math.sin(theta);
+    svg.append('line').attr('x1', cx).attr('y1', cy).attr('x2', ex).attr('y2', ey)
+      .attr('stroke', '#f0b840').attr('stroke-width', 2);
+    svg.append('circle').attr('cx', ex).attr('cy', ey).attr('r', 4).attr('fill', '#f0b840');
+    // labels
+    svg.append('text').attr('x', cx).attr('y', cy - radius - 12).attr('text-anchor', 'middle')
+      .attr('fill', '#e8e9f1').attr('font-size', 12).text(`k=${k}`);
+    const freq = Math.pow(10000, -2 * k / D);
+    svg.append('text').attr('x', cx).attr('y', cy + radius + 18).attr('text-anchor', 'middle')
+      .attr('fill', '#8a8d9f').attr('font-size', 10).text(`θ = t · ${freq.toExponential(2)}`);
+    svg.append('text').attr('x', cx).attr('y', cy + radius + 32).attr('text-anchor', 'middle')
+      .attr('fill', '#f0b840').attr('font-size', 10).text(`= ${theta.toFixed(2)} rad`);
+  });
+
+  svg.append('text').attr('x', 10).attr('y', 20).attr('fill', '#8a8d9f').attr('font-size', 11)
+    .text('Each 2D plane uses a different angular velocity. Low k rotates fast (relative position), high k rotates slowly (absolute position).');
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 9: QK-norm
+// ===========================================================================
+stage({
+  id: "qknorm",
+  num: "09",
+  tag: "CausalSelfAttention.forward · gpt.py:107-115",
+  title: "QK-norm + 1.2 sharpening",
+  intro: "After rotary, both Q and K are RMS-normalized along the head dimension, then scaled by 1.2. Norm keeps logits in a stable range; the 1.2 factor makes attention slightly sharper than the standard 1/√D scaling alone.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — CausalSelfAttention.forward
+# QK norm (per-head along head_dim)
+q = F.rms_norm(q, (q.size(-1),))
+k = F.rms_norm(k, (k.size(-1),))
+# Both Q and K are scaled by 1.2 (sharper attention; FA3 multiplies them so 1.2²)
+q = q * 1.2
+k = k * 1.2`, 'python', 'gpt.py · lines 107-112 (paraphrased)'));
+
+    root.appendChild(math(`\\text{attn}_{ij} = \\frac{(s\\hat{q_i}) \\cdot (s\\hat{k_j})}{\\sqrt{D}} = \\frac{s^2}{\\sqrt{D}} \\hat{q_i}\\cdot\\hat{k_j}, \\quad s = 1.2`));
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'Why s = 1.2'),
+      el('p', {}, `Standard scaled-dot-product divides by √D to keep variance unit. After QK-norm both vectors are unit-RMS, so the dot-product would be roughly 1 — softmax would be too soft. The 1.2 scale on each side restores some of the sharpness that QK-norm removed.`)
+    ));
+
+    // Plot showing softmax sharpness with vs without 1.2
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Effect on attention distribution'));
+    card.appendChild(el('div', { id: 'qknorm-svg' }));
+    root.appendChild(card);
+    setTimeout(() => renderQKNorm(), 0);
+  }
+});
+
+function renderQKNorm() {
+  const wrap = document.getElementById('qknorm-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 220;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  // Toy: random scores for 12 keys, show softmax with s=1.0 vs s=1.2
+  const seed = 99, n = 12;
+  const r = mulberry32(seed);
+  const scores = Array.from({ length: n }, () => (r() - 0.5) * 2);  // -1..1
+  const a1 = softmax(scores);
+  const a2 = softmax(scores.map(x => x * 1.44));  // s²=1.44
+
+  const barW = (w - 80) / n;
+  const maxY = Math.max(...a2, ...a1);
+  ['s = 1.0 (no sharpening)', 's = 1.2 (nanochat)'].forEach((lbl, ri) => {
+    const arr = ri === 0 ? a1 : a2;
+    const baseY = ri === 0 ? 90 : 200;
+    const col = ri === 0 ? '#5aa9ff' : '#f0b840';
+    svg.append('text').attr('x', 10).attr('y', baseY - 60).attr('fill', col).attr('font-size', 11).text(lbl);
+    svg.append('line').attr('x1', 60).attr('x2', w-10).attr('y1', baseY).attr('y2', baseY).attr('stroke', '#252836');
+    arr.forEach((v, i) => {
+      const x = 60 + i * barW;
+      const bh = (v / maxY) * 70;
+      svg.append('rect').attr('x', x + 2).attr('y', baseY - bh).attr('width', barW - 4).attr('height', bh).attr('fill', col).attr('opacity', 0.85);
+    });
+  });
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 10: Attention with sliding window
+// ===========================================================================
+stage({
+  id: "attn",
+  num: "10",
+  tag: "Flash Attention 3 · gpt.py:117-126",
+  title: "Causal attention with a sliding window",
+  intro: "The actual attention is done by Flash Attention 3. Most layers use a short sliding window (here 512 tokens); the last layer always uses the full context. The window pattern \u201CSSSL\u201D tiles across the 20 layers.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — CausalSelfAttention.forward (FA3 call)
+y = flash_attn_func(
+    q, k, v,
+    causal=True,
+    window_size=(window_size_left, 0),
+)
+# y: (B, T, n_head, head_dim) — reshape and project
+y = y.transpose(1, 2).contiguous().view(B, T, -1) if False else y.view(B, T, -1)
+y = self.c_proj(y)`, 'python', 'gpt.py · lines 117-126 (slightly abridged)'));
+
+    root.appendChild(code(`# nanochat/gpt.py — _compute_window_sizes
+def _compute_window_sizes(self):
+    long_window = self.config.sequence_len           # 2048
+    short_window = math.ceil((long_window / 4) / 128) * 128  # 512
+    # Tile self.config.window_pattern across layers; force last layer to 'L'.
+    sizes = []
+    for i in range(self.config.n_layer):
+        ch = self.config.window_pattern[i % len(self.config.window_pattern)]
+        sizes.append(short_window if ch == 'S' else long_window)
+    sizes[-1] = long_window
+    return sizes`, 'python', 'gpt.py · _compute_window_sizes (paraphrased lines 285-312)'));
+
+    // Layer pattern strip
+    const card1 = el('div', { class: 'card' });
+    card1.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Window pattern: "SSSL" tiled over 20 layers'));
+    card1.appendChild(el('div', { id: 'window-strip' }));
+    root.appendChild(card1);
+    setTimeout(() => renderWindowStrip(), 0);
+
+    // Attention heatmap with toggle
+    const card2 = el('div', { class: 'card' });
+    card2.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Try it · attention mask'));
+    const seqSlider = el('input', { type: 'range', min: '8', max: '32', step: '1', value: '20', id: 'attn-T' });
+    const seqVal = el('div', { class: 'val', id: 'attn-T-val' }, '20');
+    const winSlider = el('input', { type: 'range', min: '2', max: '32', step: '1', value: '6', id: 'attn-W' });
+    const winVal = el('div', { class: 'val', id: 'attn-W-val' }, '6');
+    card2.appendChild(el('div', { class: 'control' },
+      el('label', {}, 'sequence T'), seqSlider, seqVal
+    ));
+    card2.appendChild(el('div', { class: 'control' },
+      el('label', {}, 'window left'), winSlider, winVal
+    ));
+    card2.appendChild(el('div', { class: 'legend' },
+      el('span', { class: 'item' }, el('span', { class: 'sw', style: 'background:#f0b840' }), 'can attend'),
+      el('span', { class: 'item' }, el('span', { class: 'sw', style: 'background:#1b1e28; border:1px solid var(--border)' }), 'masked (future or outside window)')
+    ));
+    card2.appendChild(el('div', { id: 'attn-mask' }));
+    root.appendChild(card2);
+
+    setTimeout(() => {
+      const draw = () => {
+        const T = +document.getElementById('attn-T').value;
+        const W = +document.getElementById('attn-W').value;
+        document.getElementById('attn-T-val').textContent = T;
+        document.getElementById('attn-W-val').textContent = W;
+        renderAttnMask(T, W);
+      };
+      seqSlider.addEventListener('input', draw);
+      winSlider.addEventListener('input', draw);
+      draw();
+    }, 0);
+  }
+});
+
+function renderWindowStrip() {
+  const wrap = document.getElementById('window-strip');
+  wrap.innerHTML = '';
+  const N = CFG.n_layer, w = 720, h = 90;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  const cellW = (w - 80) / N;
+  const sizes = [];
+  for (let i = 0; i < N; i++) {
+    const ch = CFG.window_pattern[i % CFG.window_pattern.length];
+    sizes.push(ch === 'S' ? CFG.short_window : CFG.long_window);
+  }
+  sizes[N-1] = CFG.long_window;
+
+  for (let i = 0; i < N; i++) {
+    const x = 50 + i * cellW;
+    const isL = sizes[i] === CFG.long_window;
+    svg.append('rect').attr('x', x + 2).attr('y', 25).attr('width', cellW - 4).attr('height', 40)
+      .attr('rx', 6).attr('fill', isL ? '#a855f7' : '#5aa9ff').attr('opacity', 0.7);
+    svg.append('text').attr('x', x + cellW/2).attr('y', 48).attr('text-anchor', 'middle')
+      .attr('fill', '#fff').attr('font-size', 12).text(isL ? 'L' : 'S');
+    svg.append('text').attr('x', x + cellW/2).attr('y', 80).attr('text-anchor', 'middle')
+      .attr('fill', '#8a8d9f').attr('font-size', 10).text(i);
+  }
+  svg.append('text').attr('x', 8).attr('y', 48).attr('fill', '#8a8d9f').attr('font-size', 11).text('layer');
+  svg.append('text').attr('x', 8).attr('y', 18).attr('fill', '#5aa9ff').attr('font-size', 10).text(`■ S = ${CFG.short_window}   ■ L = ${CFG.long_window}`);
+  wrap.appendChild(svg.node());
+}
+
+function renderAttnMask(T, W) {
+  const wrap = document.getElementById('attn-mask');
+  wrap.innerHTML = '';
+  const size = 360, w = 480, h = 380;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  const startX = 60, startY = 20;
+  const cell = size / T;
+
+  for (let i = 0; i < T; i++) {
+    for (let j = 0; j < T; j++) {
+      const causal = j <= i;
+      const within = j >= i - W;
+      const ok = causal && within;
+      svg.append('rect').attr('x', startX + j * cell + 0.5).attr('y', startY + i * cell + 0.5)
+        .attr('width', cell - 1).attr('height', cell - 1)
+        .attr('fill', ok ? '#f0b840' : '#1b1e28').attr('opacity', ok ? 0.4 + 0.6 * Math.exp(-(i - j) * 0.15) : 1)
+        .attr('stroke', '#252836').attr('stroke-width', 0.5);
+    }
+  }
+  svg.append('text').attr('x', startX + size/2).attr('y', h - 16).attr('text-anchor', 'middle')
+    .attr('fill', '#8a8d9f').attr('font-size', 11).text('key index j  →');
+  svg.append('text').attr('transform', `translate(20, ${startY + size/2}) rotate(-90)`).attr('text-anchor', 'middle')
+    .attr('fill', '#8a8d9f').attr('font-size', 11).text('query index i  →');
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 11: MLP (ReLU²)
+// ===========================================================================
+stage({
+  id: "mlp",
+  num: "11",
+  tag: "MLP · gpt.py:129-139",
+  title: "MLP: 4× projection, ReLU squared, project back",
+  intro: "After attention, every position goes through an MLP independently. The activation is ReLU² (Primer-style): zero out negatives, then square the rest. Cheap, monotonic, and slightly better than GELU at this scale.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py
+class MLP(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.c_fc   = Linear(config.n_embd, 4 * config.n_embd, bias=False)
+        self.c_proj = Linear(4 * config.n_embd, config.n_embd, bias=False)
+
+    def forward(self, x):
+        x = self.c_fc(x)
+        x = F.relu(x).square()
+        x = self.c_proj(x)
+        return x`, 'python', 'gpt.py · MLP class (lines 129-139)'));
+
+    root.appendChild(math(`\\text{MLP}(x) = W_2 \\cdot \\text{ReLU}(W_1 x)^2, \\quad W_1 \\in \\mathbb{R}^{4d \\times d}`));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Activation curve · ReLU²'));
+    card.appendChild(el('div', { id: 'relu2-svg' }));
+    root.appendChild(card);
+    setTimeout(() => renderReLU2(), 0);
+  }
+});
+
+function renderReLU2() {
+  const wrap = document.getElementById('relu2-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 280;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  const m = { l: 50, r: 30, t: 20, b: 30 };
+  const xs = d3.scaleLinear().domain([-2.5, 2.5]).range([m.l, w - m.r]);
+  const ys = d3.scaleLinear().domain([0, 6]).range([h - m.b, m.t]);
+  // axes
+  svg.append('line').attr('x1', m.l).attr('x2', w - m.r).attr('y1', ys(0)).attr('y2', ys(0)).attr('stroke', '#3a3d4d');
+  svg.append('line').attr('x1', xs(0)).attr('x2', xs(0)).attr('y1', m.t).attr('y2', h - m.b).attr('stroke', '#3a3d4d');
+  xs.ticks(5).forEach(t => {
+    svg.append('text').attr('x', xs(t)).attr('y', h - 12).attr('text-anchor', 'middle').attr('fill', '#8a8d9f').attr('font-size', 10).text(t);
+  });
+  ys.ticks(4).forEach(t => {
+    svg.append('text').attr('x', m.l - 6).attr('y', ys(t) + 3).attr('text-anchor', 'end').attr('fill', '#8a8d9f').attr('font-size', 10).text(t);
+  });
+
+  const N = 200;
+  const xRange = d3.range(N).map(i => -2.5 + 5 * i / (N - 1));
+  const line = d3.line().x(d => xs(d[0])).y(d => ys(d[1]));
+
+  // ReLU (for comparison, dashed)
+  svg.append('path').attr('d', line(xRange.map(x => [x, Math.max(0, x)])))
+    .attr('fill', 'none').attr('stroke', '#5aa9ff').attr('stroke-width', 1.5).attr('stroke-dasharray', '4 4').attr('opacity', 0.6);
+  // GELU approx
+  svg.append('path').attr('d', line(xRange.map(x => [x, 0.5 * x * (1 + Math.tanh(Math.sqrt(2/Math.PI) * (x + 0.044715 * x*x*x)))])))
+    .attr('fill', 'none').attr('stroke', '#5ed492').attr('stroke-width', 1.5).attr('stroke-dasharray', '6 3').attr('opacity', 0.6);
+  // ReLU²
+  svg.append('path').attr('d', line(xRange.map(x => [x, Math.pow(Math.max(0, x), 2)])))
+    .attr('fill', 'none').attr('stroke', '#f0b840').attr('stroke-width', 2.5);
+
+  svg.append('text').attr('x', xs(2), 0).attr('y', ys(5)).attr('fill', '#f0b840').attr('font-size', 12).text('ReLU²  (nanochat)');
+  svg.append('text').attr('x', xs(2), 0).attr('y', ys(4.4)).attr('fill', '#5aa9ff').attr('font-size', 11).text('ReLU       (dashed)');
+  svg.append('text').attr('x', xs(2), 0).attr('y', ys(3.8)).attr('fill', '#5ed492').attr('font-size', 11).text('GELU      (dashed)');
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 12: Backout
+// ===========================================================================
+stage({
+  id: "backout",
+  num: "12",
+  tag: "GPT.forward · gpt.py:466-479",
+  title: "Backout: subtract a checkpoint from the middle",
+  intro: "At the midpoint (layer 10 of 20), nanochat caches the residual stream. After the final block, that checkpoint is subtracted out — gated by a learned scalar. Empirically this stabilizes deep stacks and gives a small quality bump.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — GPT.forward (inside the loop and after)
+self.backout_layer = self.config.n_layer // 2
+
+for layer_idx in range(self.config.n_layer):
+    ...
+    x = self.transformer.h[layer_idx](x, ...)
+    if layer_idx == self.backout_layer:
+        x_backout = x
+
+# "Backout" — subtract a fraction of the mid-network residual stream
+x = x - self.backout_lambda * x_backout`, 'python', 'gpt.py · lines 466-479 (abridged)'));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'When in the stack does backout fire?'));
+    card.appendChild(el('div', { id: 'backout-svg' }));
+    root.appendChild(card);
+    setTimeout(() => renderBackout(), 0);
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'Read it slowly'),
+      el('p', {}, `x_backout is the residual stream right after the 10th block. After the 20th block we subtract a learnable multiple of that snapshot. Think of it as: "let the second half of the network correct the first half, not just refine it."`)
+    ));
+  }
+});
+
+function renderBackout() {
+  const wrap = document.getElementById('backout-svg');
+  wrap.innerHTML = '';
+  const N = CFG.n_layer, w = 720, h = 160;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  const cellW = (w - 100) / N;
+  for (let i = 0; i < N; i++) {
+    const x = 50 + i * cellW;
+    const isBackout = i === CFG.backout_layer;
+    svg.append('rect').attr('x', x + 2).attr('y', 60).attr('width', cellW - 4).attr('height', 40)
+      .attr('rx', 6).attr('fill', isBackout ? '#f0b840' : '#1b1e28').attr('stroke', isBackout ? '#f0b840' : '#252836');
+    svg.append('text').attr('x', x + cellW/2).attr('y', 84).attr('text-anchor', 'middle')
+      .attr('fill', isBackout ? '#000' : '#8a8d9f').attr('font-size', 11).text(i);
+    if (isBackout) {
+      svg.append('text').attr('x', x + cellW/2).attr('y', 45).attr('text-anchor', 'middle')
+        .attr('fill', '#f0b840').attr('font-size', 11).text('save x_backout');
+    }
+  }
+  // arrow from backout layer to end
+  const x1 = 50 + CFG.backout_layer * cellW + cellW/2;
+  const x2 = 50 + (N - 1) * cellW + cellW/2;
+  svg.append('path').attr('d', `M ${x1} 60 C ${x1} 30, ${x2} 30, ${x2} 60`)
+    .attr('fill', 'none').attr('stroke', '#f0b840').attr('stroke-width', 1.5).attr('stroke-dasharray', '5 3');
+  svg.append('text').attr('x', (x1 + x2)/2).attr('y', 26).attr('text-anchor', 'middle')
+    .attr('fill', '#f0b840').attr('font-size', 11).text('x = x − λ · x_backout');
+  svg.append('text').attr('x', x2 + 10).attr('y', 84).attr('fill', '#8a8d9f').attr('font-size', 11).text('→ final norm');
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 13: lm_head + softcap
+// ===========================================================================
+stage({
+  id: "head",
+  num: "13",
+  tag: "GPT.forward · gpt.py:481-491",
+  title: "Final norm, logits, and softcap",
+  intro: "One last RMSNorm, project to vocab with lm_head, slice off the padding, cast to fp32, and softcap the logits with a tanh squash to keep them bounded. The cap value is 15.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/gpt.py — GPT.forward (tail)
+x = F.rms_norm(x, (x.size(-1),))
+logits = self.lm_head(x)                # (B, T, vocab_padded)
+logits = logits[..., :self.config.vocab_size]    # slice off pad
+logits = logits.float()                  # to fp32 for stability
+softcap = 15
+logits = softcap * torch.tanh(logits / softcap)`, 'python', 'gpt.py · lines 481-491 (paraphrased)'));
+
+    root.appendChild(math(`\\text{softcap}(z; c) = c \\cdot \\tanh(z / c), \\quad c = 15`));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Softcap curve'));
+    card.appendChild(el('div', { id: 'softcap-svg' }));
+    root.appendChild(card);
+    setTimeout(() => renderSoftcap(), 0);
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'Why softcap'),
+      el('p', {}, `Bare unbounded logits can explode during training and produce overly confident, brittle distributions. Tanh-softcap is a smooth, differentiable cap with a near-identity middle: |z| ≪ 15 passes through, |z| → ∞ saturates at ±15.`)
+    ));
+  }
+});
+
+function renderSoftcap() {
+  const wrap = document.getElementById('softcap-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 280;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+  const m = { l: 50, r: 30, t: 20, b: 30 };
+  const xs = d3.scaleLinear().domain([-40, 40]).range([m.l, w - m.r]);
+  const ys = d3.scaleLinear().domain([-25, 25]).range([h - m.b, m.t]);
+  svg.append('line').attr('x1', m.l).attr('x2', w - m.r).attr('y1', ys(0)).attr('y2', ys(0)).attr('stroke', '#3a3d4d');
+  svg.append('line').attr('x1', xs(0)).attr('x2', xs(0)).attr('y1', m.t).attr('y2', h - m.b).attr('stroke', '#3a3d4d');
+  // ticks
+  [-30, -15, 15, 30].forEach(t => {
+    svg.append('text').attr('x', xs(t)).attr('y', h - 12).attr('text-anchor', 'middle').attr('fill', '#8a8d9f').attr('font-size', 10).text(t);
+  });
+  [-15, 15].forEach(t => {
+    svg.append('line').attr('x1', m.l).attr('x2', w - m.r).attr('y1', ys(t)).attr('y2', ys(t)).attr('stroke', '#f0b840').attr('stroke-dasharray', '3 3').attr('opacity', 0.4);
+    svg.append('text').attr('x', m.l - 6).attr('y', ys(t) + 3).attr('text-anchor', 'end').attr('fill', '#f0b840').attr('font-size', 10).text(`±${t > 0 ? '15' : '15'}`);
+  });
+  // identity
+  const N = 200;
+  const xRange = d3.range(N).map(i => -40 + 80 * i / (N - 1));
+  const line = d3.line().x(d => xs(d[0])).y(d => ys(d[1]));
+  svg.append('path').attr('d', line(xRange.map(x => [x, x])))
+    .attr('fill', 'none').attr('stroke', '#5aa9ff').attr('stroke-width', 1.5).attr('stroke-dasharray', '4 4').attr('opacity', 0.5);
+  // softcap
+  svg.append('path').attr('d', line(xRange.map(x => [x, 15 * Math.tanh(x / 15)])))
+    .attr('fill', 'none').attr('stroke', '#f0b840').attr('stroke-width', 2.5);
+  svg.append('text').attr('x', xs(30)).attr('y', ys(20)).attr('fill', '#5aa9ff').attr('font-size', 11).text('identity (raw)');
+  svg.append('text').attr('x', xs(30)).attr('y', ys(15) - 6).attr('fill', '#f0b840').attr('font-size', 11).text('15·tanh(z/15)');
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 14: Sampling
+// ===========================================================================
+stage({
+  id: "sample",
+  num: "14",
+  tag: "sample_next_token · engine.py:140-156",
+  title: "Sampling: temperature + top-k",
+  intro: "engine.py turns the softcapped logits into a single next token. Temperature divides the logits (lower = sharper); top-k truncates the distribution to the k most likely tokens; softmax + multinomial draws one.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/engine.py — sample_next_token
+def sample_next_token(logits, temperature=1.0, top_k=50, generator=None):
+    if temperature == 0.0:
+        return torch.argmax(logits, dim=-1)
+    logits = logits / temperature
+    if top_k is not None and top_k > 0:
+        v, ix = torch.topk(logits, k=top_k, dim=-1)
+        probs = F.softmax(v, dim=-1)
+        choice = torch.multinomial(probs, num_samples=1, generator=generator)
+        return ix.gather(-1, choice).squeeze(-1)
+    probs = F.softmax(logits, dim=-1)
+    return torch.multinomial(probs, num_samples=1, generator=generator).squeeze(-1)`, 'python', 'engine.py · lines 140-156 (paraphrased)'));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Try it · temperature & top-k'));
+    const tSlider = el('input', { type: 'range', min: '0.05', max: '2.0', step: '0.05', value: '0.8', id: 'sample-T' });
+    const tVal = el('div', { class: 'val', id: 'sample-T-val' }, '0.80');
+    const kSlider = el('input', { type: 'range', min: '1', max: '20', step: '1', value: '8', id: 'sample-K' });
+    const kVal = el('div', { class: 'val', id: 'sample-K-val' }, '8');
+    card.appendChild(el('div', { class: 'control' }, el('label', {}, 'temperature'), tSlider, tVal));
+    card.appendChild(el('div', { class: 'control' }, el('label', {}, 'top-k'), kSlider, kVal));
+    card.appendChild(el('div', { id: 'sample-svg' }));
+    root.appendChild(card);
+
+    setTimeout(() => {
+      const draw = () => {
+        const t = +document.getElementById('sample-T').value;
+        const k = +document.getElementById('sample-K').value;
+        document.getElementById('sample-T-val').textContent = t.toFixed(2);
+        document.getElementById('sample-K-val').textContent = k;
+        renderSample(t, k);
+      };
+      tSlider.addEventListener('input', draw);
+      kSlider.addEventListener('input', draw);
+      draw();
+    }, 0);
+  }
+});
+
+function renderSample(temp, K) {
+  const wrap = document.getElementById('sample-svg');
+  wrap.innerHTML = '';
+  const w = 720, h = 320;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+
+  // 20 toy tokens with decreasing softcapped logits
+  const tokens = ['the', 'a', 'to', 'and', 'of', 'in', 'is', 'that', 'it', 'for',
+                  'on', 'with', 'as', 'this', 'be', 'by', 'an', 'at', 'or', 'but'];
+  const seed = 4242;
+  const r = mulberry32(seed);
+  const raw = tokens.map((_, i) => 12 - i * 0.7 + (r() - 0.5) * 1.5);
+  const capped = raw.map(z => 15 * Math.tanh(z / 15));
+
+  // Apply temp
+  const scaled = capped.map(z => z / temp);
+  // Top-k
+  const sorted = scaled.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+  const topIdx = new Set(sorted.slice(0, K).map(x => x.i));
+  const masked = scaled.map((v, i) => topIdx.has(i) ? v : -Infinity);
+  const probs = softmax(masked.filter(v => v !== -Infinity));
+  // Map back to position
+  let pIter = 0;
+  const fullP = scaled.map((v, i) => topIdx.has(i) ? probs[pIter++] : 0);
+
+  const barW = (w - 60) / tokens.length;
+  const maxP = Math.max(...fullP, 0.01);
+  tokens.forEach((tk, i) => {
+    const x = 40 + i * barW;
+    const bh = (fullP[i] / maxP) * 180;
+    const isKept = topIdx.has(i);
+    svg.append('rect').attr('x', x + 2).attr('y', 220 - bh).attr('width', barW - 4).attr('height', bh)
+      .attr('fill', isKept ? '#f0b840' : '#252836');
+    svg.append('text').attr('x', x + barW/2).attr('y', 240).attr('text-anchor', 'middle')
+      .attr('fill', '#8a8d9f').attr('font-size', 10).text(tk);
+    if (fullP[i] > 0.001) {
+      svg.append('text').attr('x', x + barW/2).attr('y', 216 - bh).attr('text-anchor', 'middle')
+        .attr('fill', '#f0b840').attr('font-size', 9).text(fullP[i].toFixed(2));
+    }
+  });
+  svg.append('text').attr('x', 30).attr('y', 24).attr('fill', '#8a8d9f').attr('font-size', 11)
+    .text(`Top-${K} survive → softmax → multinomial draw`);
+  svg.append('line').attr('x1', 30).attr('x2', w - 20).attr('y1', 220).attr('y2', 220).attr('stroke', '#3a3d4d');
+
+  // Show argmax token (always picked at temp→0)
+  const best = fullP.indexOf(Math.max(...fullP));
+  svg.append('text').attr('x', w - 20).attr('y', 24).attr('text-anchor', 'end').attr('fill', '#f0b840').attr('font-size', 12)
+    .text(`argmax = "${tokens[best]}"  (${(fullP[best]*100).toFixed(1)}%)`);
+
+  wrap.appendChild(svg.node());
+}
+
+// ===========================================================================
+// STAGE 15: KV cache
+// ===========================================================================
+stage({
+  id: "kvcache",
+  num: "15",
+  tag: "KVCache + Engine · engine.py:82-280",
+  title: "KV cache: prefill once, decode forever",
+  intro: "At inference, only the new token's Q/K/V need to be computed. Past K and V are kept in a preallocated cache. nanochat's KVCache also remembers prev_embedding so the smear stage works across decode steps.",
+  mount(root) {
+    root.appendChild(code(`# nanochat/engine.py — KVCache (abridged)
+class KVCache:
+    def __init__(self, batch_size, n_layers, max_seq_len, n_kv_head, head_dim, dtype, device):
+        self.k_cache = torch.zeros(n_layers, batch_size, max_seq_len, n_kv_head, head_dim, dtype=dtype, device=device)
+        self.v_cache = torch.zeros(n_layers, batch_size, max_seq_len, n_kv_head, head_dim, dtype=dtype, device=device)
+        self.cache_seqlens = torch.zeros(batch_size, dtype=torch.int32, device=device)
+        # smear needs the previous step's normalized embedding
+        self.prev_embedding = torch.zeros(batch_size, 1, n_embd, dtype=dtype, device=device)`, 'python', 'engine.py · KVCache (lines 82-137, paraphrased)'));
+
+    root.appendChild(code(`# nanochat/gpt.py — CausalSelfAttention.forward (inference branch)
+if kv_cache is not None:
+    layer_kv = kv_cache.get_layer(self.layer_idx)
+    # Flash attn writes our new K, V into the cache positions [cache_seqlens : cache_seqlens+T)
+    y = flash_attn_with_kvcache(
+        q, layer_kv.k_cache, layer_kv.v_cache,
+        k=k, v=v,
+        cache_seqlens=kv_cache.cache_seqlens,
+        causal=True,
+        window_size=(window_size_left, 0),
+    )
+    # After the last layer, advance the cache offset
+    if self.layer_idx == self.config.n_layer - 1:
+        kv_cache.cache_seqlens += T`, 'python', 'gpt.py · attention inference branch (paraphrased)'));
+
+    const card = el('div', { class: 'card' });
+    card.appendChild(el('div', { class: 'card-title' }, el('span', { class: 'pip' }), 'Animate · prefill then decode'));
+    card.appendChild(el('div', { class: 'btn-row', style: 'margin-bottom:16px' },
+      el('button', { class: 'btn primary', onclick: () => startKvAnim() }, 'play'),
+      el('button', { class: 'btn', onclick: () => resetKvAnim() }, 'reset'),
+      el('span', { id: 'kv-step', style: 'font-family:var(--mono); color:var(--muted); font-size:12px; margin-left:12px' }, 'step 0 / 0')
+    ));
+    card.appendChild(el('div', { id: 'kvcache-svg' }));
+    root.appendChild(card);
+    setTimeout(() => { renderKvCache(0); }, 0);
+
+    root.appendChild(el('div', { class: 'callout' },
+      el('div', { class: 'label' }, 'The asymmetric workload'),
+      el('p', {}, `Prefill is compute-bound (process T prompt tokens once, in parallel). Decode is memory-bandwidth-bound (process 1 new token at a time, read all of K/V from cache for every layer). This split is why GQA, sliding windows, and a tight cache layout matter so much for inference.`)
+    ));
+  }
+});
+
+let kvAnimState = { step: 0, prefillLen: 6, decodeLen: 8, timer: null };
+function renderKvCache(step) {
+  const wrap = document.getElementById('kvcache-svg');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const w = 720, h = 280;
+  const svg = d3.create('svg').attr('viewBox', `0 0 ${w} ${h}`);
+
+  const totalSlots = 20;
+  const slotW = (w - 80) / totalSlots, slotH = 36;
+  const startX = 40;
+
+  // K row
+  const kY = 80, vY = 130;
+  for (let i = 0; i < totalSlots; i++) {
+    const x = startX + i * slotW;
+    let fill = '#1b1e28';
+    if (i < step) fill = i < kvAnimState.prefillLen ? '#5ed492' : '#f0b840';
+    svg.append('rect').attr('x', x + 1).attr('y', kY).attr('width', slotW - 2).attr('height', slotH).attr('rx', 3)
+      .attr('fill', fill).attr('opacity', i < step ? 0.85 : 1).attr('stroke', '#252836');
+  }
+  // V row
+  for (let i = 0; i < totalSlots; i++) {
+    const x = startX + i * slotW;
+    let fill = '#1b1e28';
+    if (i < step) fill = i < kvAnimState.prefillLen ? '#f06aa3' : '#f0b840';
+    svg.append('rect').attr('x', x + 1).attr('y', vY).attr('width', slotW - 2).attr('height', slotH).attr('rx', 3)
+      .attr('fill', fill).attr('opacity', i < step ? 0.85 : 1).attr('stroke', '#252836');
+  }
+
+  // Labels
+  svg.append('text').attr('x', 8).attr('y', kY + 22).attr('fill', '#5ed492').attr('font-size', 12).text('K');
+  svg.append('text').attr('x', 8).attr('y', vY + 22).attr('fill', '#f06aa3').attr('font-size', 12).text('V');
+  svg.append('text').attr('x', 8).attr('y', kY - 10).attr('fill', '#8a8d9f').attr('font-size', 10).text('cache slot →');
+
+  // Phase indicator
+  let phase = 'idle';
+  if (step > 0 && step <= kvAnimState.prefillLen) phase = `prefill (T=${kvAnimState.prefillLen})`;
+  else if (step > kvAnimState.prefillLen) phase = `decode step ${step - kvAnimState.prefillLen}`;
+  svg.append('text').attr('x', w - 10).attr('y', 30).attr('text-anchor', 'end').attr('fill', '#f0b840').attr('font-size', 14).text(phase);
+
+  // Caret pointing at next write position
+  if (step < totalSlots) {
+    const cx = startX + step * slotW + slotW/2;
+    svg.append('path').attr('d', `M ${cx-6} 60 L ${cx+6} 60 L ${cx} 70 Z`).attr('fill', '#f0b840');
+    svg.append('text').attr('x', cx).attr('y', 54).attr('text-anchor', 'middle').attr('fill', '#f0b840').attr('font-size', 10).text('write');
+  }
+
+  // Legend
+  svg.append('text').attr('x', 40).attr('y', 220).attr('fill', '#5ed492').attr('font-size', 11).text('■ K from prefill');
+  svg.append('text').attr('x', 160).attr('y', 220).attr('fill', '#f06aa3').attr('font-size', 11).text('■ V from prefill');
+  svg.append('text').attr('x', 280).attr('y', 220).attr('fill', '#f0b840').attr('font-size', 11).text('■ written during decode');
+
+  svg.append('text').attr('x', 40).attr('y', 248).attr('fill', '#8a8d9f').attr('font-size', 11)
+    .text(`Stored once per layer: shape (n_layers=${CFG.n_layer}, B, max_seq, n_kv_head=${CFG.n_kv_head}, D=${CFG.head_dim}). For a single batch, the full K cache holds ${(CFG.n_layer * 2048 * CFG.n_kv_head * CFG.head_dim / 1e6).toFixed(1)}M scalars in bf16.`);
+
+  wrap.appendChild(svg.node());
+  document.getElementById('kv-step').textContent = `step ${step} / ${kvAnimState.prefillLen + kvAnimState.decodeLen}`;
+}
+function startKvAnim() {
+  resetKvAnim();
+  const total = kvAnimState.prefillLen + kvAnimState.decodeLen;
+  // first tick: prefill fills prefillLen slots at once
+  kvAnimState.timer = setInterval(() => {
+    if (kvAnimState.step === 0) {
+      kvAnimState.step = kvAnimState.prefillLen;
+    } else if (kvAnimState.step < total) {
+      kvAnimState.step += 1;
+    } else {
+      clearInterval(kvAnimState.timer);
+      return;
+    }
+    renderKvCache(kvAnimState.step);
+  }, 380);
+}
+function resetKvAnim() {
+  if (kvAnimState.timer) clearInterval(kvAnimState.timer);
+  kvAnimState.step = 0;
+  renderKvCache(0);
+}
+
+// ===========================================================================
+// MOUNT
+// ===========================================================================
+function mountStages() {
+  const root = document.getElementById('stages');
+  const navList = document.getElementById('navList');
+
+  STAGES.forEach(s => {
+    const section = el('section', { class: 'stage', id: s.id });
+    const head = el('div', {},
+      el('div', { class: 'stage-header' },
+        el('span', { class: 'stage-num' }, s.num),
+        el('span', { class: 'stage-tag' }, s.tag)
+      ),
+      el('h2', {}, s.title),
+      el('p', { class: 'intro' }, s.intro)
+    );
+    section.appendChild(head);
+    s.mount(section);
+    root.appendChild(section);
+
+    // nav entry (skip config which is 00)
+    if (s.num !== '00') {
+      const li = el('li', {}, el('a', { href: '#' + s.id }, s.title));
+      navList.appendChild(li);
+    }
+  });
+
+  // Render KaTeX in all .math-block divs
+  document.querySelectorAll('.math-block').forEach(d => tex(d));
+  document.querySelectorAll('div[data-tex]').forEach(d => { if (!d.classList.contains('rendered')) { tex(d); d.classList.add('rendered'); } });
+  // Highlight code (bundled hljs already knows python)
+  if (window.hljs) {
+    document.querySelectorAll('pre.code code').forEach(b => hljs.highlightElement(b));
+  }
+}
+
+function setupScrollSpy() {
+  const links = Array.from(document.querySelectorAll('.nav a'));
+  const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  function onScroll() {
+    const y = window.scrollY + 120;
+    let best = 0;
+    for (let i = 0; i < sections.length; i++) {
+      if (sections[i].offsetTop <= y) best = i;
+    }
+    links.forEach((a, i) => a.classList.toggle('active', i === best));
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  mountOverview();
+  mountStages();
+  setupScrollSpy();
+});
+</script>
+</body>
+</html>
